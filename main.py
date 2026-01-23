@@ -3,6 +3,13 @@ import matplotlib.pyplot as plt
 from scipy.special import beta as beta_func
 
 class nsmc_sampling:
+    """
+    Parent class to generalise the nsmc_sampling. It has the general functions used for any sampling density.
+    Parameters:
+        d: dimsion of the cube
+        a: length of the cube.
+        k: required number of accepted samples
+    """
     def __init__(self,d,a,k):
         self.d=d
         self.a=a
@@ -81,10 +88,10 @@ class nsmc_sampling_gaussian(nsmc_sampling):
     Parameters:
         d: dimsion of the cube
         a: length of the cube.
+        k: required number of accepted samples
         sigma: for gaussian based density
         mu: required for the gaussian density
-        k: required number of accepted samples
-    """
+           """
     def __init__(self,d,a,k,sigma,mu):
         super().__init__(d,a,k)
         self.sigma=sigma
@@ -119,7 +126,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
        
         #Mode of chi asymtotically at root(d+lambda^2) where lambda=norm(mu)
         x_mode=np.sqrt(self.d+np.linalg.norm(self.mu)**2)
-        f_max=f_r_gauss(self.theta_generation(),x_mode)
+        f_max=((x_mode)**(self.d-1))*f_r_gauss(self.theta_generation(),x_mode)
         return f_r_gauss,f_max
 
 
@@ -134,7 +141,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
         
         temp=self.f_r_gaussian()
         gauss_den=temp[0]
-        f_max=temp[1]+0.01
+        f_max=temp[1]+0.0
         #f_max give along with f_r , also doing +0,01 in f_max, might want to remove that later
         
         accepted=[]
@@ -154,6 +161,15 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
 
 class nsmc_sampling_beta(nsmc_sampling):
+    """
+    This class is to sample from beta distribution along each sampled theta.
+    Parameters:
+        alpha:
+        beta:
+        d: dimsion of the cube
+        a: length of the cube.
+        k: required number of accepted samples
+    """
     def __init__(self,d,a,k,alpha,beta):
         super().__init__(d,a,k)
         self.alpha=alpha
@@ -182,11 +198,14 @@ class nsmc_sampling_beta(nsmc_sampling):
         """
         accepted=[]
         rejected=[]
+        x_max=(self.a*np.sqrt(self.d)/2)*(self.d+self.alpha-2)/(self.d+self.alpha+self.beta-3)
+        f_max=self.f_r_beta(x_max,self.theta_generation())
+
         while len(accepted)<self.k:
             theta=self.theta_generation()
             _,R_=self.R(theta)
         
-            f_max=(self.a*np.sqrt(self.d)/2)*(10+self.alpha-2)/(10+self.alpha+self.beta-3)
+           
 
             sampled_r=np.random.uniform(0,R_)
             sampled_f=np.random.uniform(0,f_max)
