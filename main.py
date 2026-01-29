@@ -71,12 +71,11 @@ class nsmc_sampling:
         r_boundary = self.a 
 
 
-        plt.scatter(x_accepted, y_accepted, color='green', s=10, label='Accepted Samples at this Angle')
+        plt.scatter(x_accepted, y_accepted, color='green', s=10 )
         plt.gca().set_aspect('equal')
         plt.axhline(0, color='black', linewidth=0.5)
         plt.axvline(0, color='black', linewidth=0.5)
         plt.title("Projection of d-dimsional Samples onto 2D Plane")
-        plt.legend()
         plt.show()
         return
 
@@ -155,14 +154,16 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
             if sampled_f<=(sampled_r**((self.d)-1))*gauss_den(theta,sampled_r):
                 accepted.append((theta,sampled_r))
-            rejected.append((theta,sampled_r))
+            else:
+                rejected.append((theta,sampled_r))
         
         return accepted,rejected
 
 
 class nsmc_sampling_beta(nsmc_sampling):
     """
-    This class is to sample from beta distribution along each sampled theta.
+    This class is to sample from beta distribution along each sampled theta. This is just to verify our 
+    code. With low beta and high-alpha, it should sample near edges.
     Parameters:
         alpha:
         beta:
@@ -175,43 +176,29 @@ class nsmc_sampling_beta(nsmc_sampling):
         self.alpha=alpha
         self.beta=beta
 
-
-    def f_r_beta(self,r,theta):
-        
-        _, R = self.R(theta) 
+    def f_r_beta(self,r,R):
         if np.any(r < 0) or np.any(r > R):
             return 0
-    
-        # After multiplying by r^(d-1), the effective alpha is alpha + d - 1
-        alpha_eff = self.alpha + self.d - 1
-        
-        # Normalization constant for d-dimensions on support [0, R]
-        # This accounts for the r^(d-1) geometric factor
-        constant = 1 / (R**self.d * beta_func(alpha_eff, self.beta))
-        
-        # Core kernel of the radial distribution
-        density = constant * (r**(alpha_eff - 1)) * (1 - r/R)**(self.beta - 1)
-        return density        
+        normalization = 1 / (R * beta_func(self.alpha, self.beta))
+        kernel = (r / R)**(self.alpha - 1) * (1 - r / R)**(self.beta - 1)
+        return normalization * kernel   
     
     def get_samples(self):
         """
         """
         accepted=[]
         rejected=[]
-        x_max=(self.a*np.sqrt(self.d)/2)*(self.d+self.alpha-2)/(self.d+self.alpha+self.beta-3)
-        f_max=self.f_r_beta(x_max,self.theta_generation())
+        R_diag=(self.a/2)*np.sqrt(self.d)
+        x_max=(R_diag)*(self.d+self.alpha-2)/(self.d+self.alpha+self.beta-3)
+        f_max=((R_diag)**(self.d-1))*self.f_r_beta(x_max,R_diag)
 
         while len(accepted)<self.k:
             theta=self.theta_generation()
             _,R_=self.R(theta)
-        
-           
-
             sampled_r=np.random.uniform(0,R_)
             sampled_f=np.random.uniform(0,f_max)
-
-            if sampled_f<=self.f_r_beta(sampled_r,theta):
+            if sampled_f<=(sampled_r**(self.d-1))*self.f_r_beta(sampled_r,R_):
                 accepted.append((theta,sampled_r))
-            rejected.append((theta,sampled_r))
-        
+            else:
+                rejected.append((theta,sampled_r))
         return accepted,rejected 
