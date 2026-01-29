@@ -176,11 +176,11 @@ class nsmc_sampling_beta(nsmc_sampling):
         self.alpha=alpha
         self.beta=beta
 
-    def f_r_beta(self,r,R):
-        if np.any(r < 0) or np.any(r > R):
+    def f_r_beta(self,r,R_):
+        if np.any(r < 0) or np.any(r > R_):
             return 0
-        normalization = 1 / (R * beta_func(self.alpha, self.beta))
-        kernel = (r / R)**(self.alpha - 1) * (1 - r / R)**(self.beta - 1)
+        normalization = 1 / (R_ * beta_func(self.alpha, self.beta))
+        kernel = (r / R_)**(self.alpha - 1) * (1 - r / R_)**(self.beta - 1)
         return normalization * kernel   
     
     def get_samples(self):
@@ -201,4 +201,24 @@ class nsmc_sampling_beta(nsmc_sampling):
                 accepted.append((theta,sampled_r))
             else:
                 rejected.append((theta,sampled_r))
-        return accepted,rejected 
+        return accepted,rejected
+
+class nsmc_sampling_x_integrand(nsmc_sampling):
+    """
+    Parameters:
+        d: dimsion of the cube
+        a: length of the cube.
+        k: required number of accepted samples
+    """
+    def __init__(self,d,a,k,alpha,beta):
+        super().__init__(d,a,k)
+
+
+    def f(self,r):
+        theta=self.theta_generation()
+        r_vec,R_=self.R(theta)
+        x_1=np.zeros(r_vec.shape)
+        x_1[0]=1
+
+
+
