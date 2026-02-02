@@ -221,4 +221,28 @@ class nsmc_sampling_x_integrand(nsmc_sampling):
         x_1[0]=1
 
 
+class gaussian_mixture(nsmc_sampling):
 
+    def __init__(self,d,a,k):
+        super().__init__(d,a,k)
+        self.mu=mu
+
+    def f_r_gaussian_mixture(self):
+        """
+        """        
+        
+        def f_r_gauss(theta,r):
+            r_vec, _ = self.R(theta) 
+            x_pos = r * r_vec
+            diff_1=x_pos-self.mu
+            diff_2=x_pos+self.mu
+            
+            normalization=1/(2*((2*np.pi)**(self.d/2)))
+            expo=(np.exp(-(np.linalg.norm(diff_1)**2)/2) + np.exp(-(np.linalg.norm(diff_2)**2)/2))
+            return expo/normalization
+
+       
+        #Mode of chi asymtotically at root(d+lambda^2) where lambda=norm(mu)
+        x_mode=np.sqrt(self.d+np.linalg.norm(self.mu)**2)
+        f_max=((x_mode)**(self.d-1))*f_r_gauss(self.theta_generation(),x_mode)
+        return f_r_gauss,f_max
