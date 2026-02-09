@@ -203,46 +203,71 @@ class nsmc_sampling_beta(nsmc_sampling):
                 rejected.append((theta,sampled_r))
         return accepted,rejected
 
-class nsmc_sampling_x_integrand(nsmc_sampling):
-    """
-    Parameters:
-        d: dimsion of the cube
-        a: length of the cube.
-        k: required number of accepted samples
-    """
-    def __init__(self,d,a,k,alpha,beta):
-        super().__init__(d,a,k)
-
-
-    def f(self,r):
-        theta=self.theta_generation()
-        r_vec,R_=self.R(theta)
-        x_1=np.zeros(r_vec.shape)
-        x_1[0]=1
-
-
-class gaussian_mixture(nsmc_sampling):
-
-    def __init__(self,d,a,k):
-        super().__init__(d,a,k)
-        self.mu=mu
-
-    def f_r_gaussian_mixture(self):
-        """
-        """        
-        
-        def f_r_gauss(theta,r):
-            r_vec, _ = self.R(theta) 
-            x_pos = r * r_vec
-            diff_1=x_pos-self.mu
-            diff_2=x_pos+self.mu
-            
-            normalization=1/(2*((2*np.pi)**(self.d/2)))
-            expo=(np.exp(-(np.linalg.norm(diff_1)**2)/2) + np.exp(-(np.linalg.norm(diff_2)**2)/2))
-            return expo/normalization
-
-       
-        #Mode of chi asymtotically at root(d+lambda^2) where lambda=norm(mu)
-        x_mode=np.sqrt(self.d+np.linalg.norm(self.mu)**2)
-        f_max=((x_mode)**(self.d-1))*f_r_gauss(self.theta_generation(),x_mode)
-        return f_r_gauss,f_max
+# class nsmc_sampling_x_integrand(nsmc_sampling):
+#     """
+#     Parameters:
+#         d: dimsion of the cube
+#         a: length of the cube.
+#         k: required number of accepted samples
+#     """
+#     def __init__(self,d,a,k,alpha,beta):
+#         super().__init__(d,a,k)
+#
+#
+#     def f(self,r):
+#         theta=self.theta_generation()
+#         r_vec,R_=self.R(theta)
+#         x_1=np.zeros(r_vec.shape)
+#         x_1[0]=1
+#
+#
+# class gaussian_mixture(nsmc_sampling):
+#
+#     def __init__(self,d,a,k):
+#         super().__init__(d,a,k)
+#         self.mu=mu
+#
+#     def f_r_gaussian_mixture(self):
+#         """
+#         """        
+#
+#         def f_r_gauss(theta,r):
+#             r_vec, _ = self.R(theta) 
+#             x_pos = r * r_vec
+#             diff_1=x_pos-self.mu
+#             diff_2=x_pos+self.mu
+#             normalization=1/(2*((2*np.pi)**(self.d/2)))
+#             expo=(np.exp(-(np.linalg.norm(diff_1)**2)/2) + np.exp(-(np.linalg.norm(diff_2)**2)/2))
+#             return expo/normalization
+#
+#         #Mode of chi asymtotically at root(d+lambda^2) where lambda=norm(mu)
+#         x_mode=np.sqrt(self.d+np.linalg.norm(self.mu)**2)
+#         f_max=((x_mode)**(self.d-1))*f_r_gauss(self.theta_generation(),x_mode)
+#     return f_r_gauss,f_max
+#
+# class laplace(nsmc_sampling):
+#     def __init__(self,d,a,k):
+#         super().__init__(d,a,k,mu,b)
+#         self.mu=np.array(mu)
+#         self.b=b
+#
+#     def laplace(self):
+#         norm_const = 1.0 / ((2.0 * self.b) ** self.d)
+#         # The peak radius for the axis direction
+#         r_peak_global = self.b * (self.d - 1)
+#
+#         # Calculate the height at this peak
+#         # Note: We assume ||u||_1 = 1 here
+#         peak_density = norm_const * np.exp(-r_peak_global / self.b)
+#
+#         # The Max value of the profile (Jacobian included)
+#         global_f_max = (r_peak_global ** (self.d - 1)) * peak_density
+#         def laplace_den(r):
+#             r_vec, _ = self.R(theta) 
+#             x_pos = r * r_vec
+#             diff=x_pos-self.mu
+#             val=(1 / ((2 * self.b) ** self.d)) * np.exp(-np.linalg.norm(diff, 1) / self.b)
+#
+#         f_max
+#         return laplace_den(r)
+#
