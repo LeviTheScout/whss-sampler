@@ -270,4 +270,4 @@ class nsmc_sampling_beta(nsmc_sampling):
 #
 #         f_max
 #         return laplace_den(r)
-#
+                         
