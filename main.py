@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import beta as beta_func
+from scipy.integrate import quad
+from scipy.optimize import brentq
 
 class nsmc_sampling:
     """
@@ -43,6 +45,14 @@ class nsmc_sampling:
         # is this correct? 
         inf_norm = np.max(np.abs(x))
         return x, self.a / (2 * inf_norm)
+    
+    def importance_r(self, g_r, R_,theta,percentage_mass=0.99):
+        total_mass = percentage_mass * quad(g_r, 0, R_,args=(theta,))[0]
+        def temp(guess_a):
+            current, _ = quad(g_r, guess_a, R_,args=(theta,))
+            return current - total_mass
+        a_result = brentq(temp, a=0, b=R_) 
+        return a_result, total_mass    
     
     def x_y_view(self,accepted):
         """
@@ -111,7 +121,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
         L = np.linalg.cholesky(self.sigma)
         log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
         log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
-        def f_r_gauss(theta,r):
+        def f_r_gauss(r,theta):
             r_vec, _ = self.R(theta) 
             x_pos = r * r_vec
             diff=x_pos-self.mu
@@ -125,7 +135,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
        
         #Mode of chi asymtotically at root(d+lambda^2) where lambda=norm(mu)
         x_mode=np.sqrt(self.d+np.linalg.norm(self.mu)**2)
-        f_max=((x_mode)**(self.d-1))*f_r_gauss(self.theta_generation(),x_mode)
+        f_max=((x_mode)**(self.d-1))*f_r_gauss(x_mode,self.theta_generation())
         return f_r_gauss,f_max
 
 
@@ -146,13 +156,18 @@ class nsmc_sampling_gaussian(nsmc_sampling):
         accepted=[]
         rejected=[]
         while len(accepted)<self.k:
+
             theta=self.theta_generation()
             _,R_=self.R(theta)
             
-            sampled_r=np.random.uniform(0,R_)
+            # a,total_mass=self.importance_r(gauss_den, R_,theta,0.95)
+            # sampled_r=np.random.uniform(a,R_)
+            #
+            sampled_r=np.random.uniform(np.sqrt(self.d)-(2.57/np.sqrt(2)),np.sqrt(self.d)+(2.57/np.sqrt(2)))
+            #sampled_r=np.random.uniform(0,R_)
             sampled_f=np.random.uniform(0,f_max)
 
-            if sampled_f<=(sampled_r**((self.d)-1))*gauss_den(theta,sampled_r):
+            if sampled_f<=(sampled_r**((self.d)-1))*gauss_den(sampled_r,theta):
                 accepted.append((theta,sampled_r))
             else:
                 rejected.append((theta,sampled_r))
