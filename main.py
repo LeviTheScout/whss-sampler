@@ -91,8 +91,8 @@ class nsmc_sampling:
             elif vol_b >= target:
                 a = mid
             else:
-                # res_a, res_b = second_search(a, b)
-                return a, b, total_mass
+                res_a, res_b = second_search(a, b)
+                return res_b, res_b, total_mass
         
         return a, b, total_mass
         # def temp(guess_a):
@@ -177,11 +177,11 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             w = np.dot(y, y)   # = diff^T Sigma^{-1} diff
 
             log_density = log_norm_const - 0.5 * w
-            return np.exp(log_density)
+            return (r**((self.d)-1))*(np.exp(log_density))
        
         #Mode of chi asymtotically at root(d+lambda^2) where lambda=norm(mu)
         x_mode=np.sqrt(self.d+np.linalg.norm(self.mu)**2)
-        f_max=((x_mode)**(self.d-1))*f_r_gauss(x_mode,self.theta_generation())
+        f_max=f_r_gauss(x_mode,self.theta_generation())
         return f_r_gauss,f_max
 
 
@@ -212,7 +212,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             #sampled_r=np.random.uniform(0,R_)
             sampled_f=np.random.uniform(0,f_max)
 
-            if sampled_f<=(sampled_r**((self.d)-1))*gauss_den(sampled_r,theta):
+            if sampled_f<=gauss_den(sampled_r,theta):
                 accepted.append((theta,sampled_r))
             else:
                 rejected.append((theta,sampled_r))
