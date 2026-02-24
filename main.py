@@ -49,37 +49,87 @@ class nsmc_sampling:
     def importance_r(self, g_r, R_, theta, tol, percentage_mass=0.99):
         total_mass = quad(g_r, 0, R_, args=(theta,))[0]
         target = percentage_mass * total_mass
-        
+
         a, b = 0, R_
         vol_a, vol_b = total_mass, total_mass 
 
-        def second_search(ini, final, max_iter=200):
-            curr_ini, curr_final = ini, final
-            for _ in range(max_iter):
-                mid = (curr_ini + curr_final) / 2
-                new_ini = (curr_ini + mid) / 2
-                new_final = (mid + curr_final) / 2
-                
-                new_vol = quad(g_r, new_ini, new_final, args=(theta,))[0]
-                
-                if abs(new_vol - target) < tol:
-                    return new_ini, new_final
-                
-                # Update bounds for next iteration
-                curr_ini, curr_final = new_ini, new_final
-            
-            # If it finishes the loop without returning, it failed to converge
-            return curr_ini, curr_final         
+    #     def second_search(ini, final, max_iter=500):
+    #         new_a = ini
+    #         new_b = final
+    #
+    #         damping = 0.7  # Reducing this slightly prevents the 'ping-pong' effect
+    #         iteration = 0
+    #         while iteration < max_iter:
+    #             current_vol = quad(g_r, new_a, new_b, args=(theta,))[0]
+    #             error = target - current_vol
+    #
+    #             if abs(error) / total_mass < tol:
+    #                 print(f"converged in {iteration} iterations")
+    #                 return new_a, new_b
+    #
+    #             h_a = max(g_r(new_a, theta), 1e-12)
+    #             h_b = max(g_r(new_b, theta), 1e-12)
+    #
+    #             # Fixed: Use 'new_a' and 'new_b' here
+    #             if new_a <= 0 and error > 0:
+    #                 step_a = 0
+    #                 step_b = error / h_b
+    #             elif new_b >= R_ and error > 0:
+    #                 step_a = error / h_a
+    #                 step_b = 0
+    #             else:
+    #                 # Fixed: Divide error by 2 so total change doesn't overshoot
+    #                 step_a = (error / 2) / h_a
+    #                 step_b = (error / 2) / h_b
+    #
+    #             new_a -= damping * step_a
+    #             new_b += damping * step_b
+    #
+    #             # Ensure order and bounds
+    #             new_a = max(0, min(new_a, R_))
+    #             new_b = max(0, min(new_b, R_))
+    #
+    #             # Safety: prevent crossing
+    #             if new_a > new_b:
+    #                 new_a, new_b = new_b, new_a
+    #
+    #             iteration += 1
+    #
+    #         print("max_iter hit")
+    #         return new_a, new_b
+        # ------solution to recursive approach but max iter gets hitted and gives garbage results------
+        # def second_search(ini, final, max_iter=900):
+        #     curr_ini, curr_final = ini, final
+        #     for _ in range(max_iter):
+        #         mid = (curr_ini + curr_final) / 2
+        #         new_ini = (curr_ini + mid) / 2
+        #         new_final = (mid + curr_final) / 2
+        #
+        #         new_vol = quad(g_r, new_ini, new_final, args=(theta,))[0]
+        #
+        #         if abs(new_vol - target)/total_mass < tol:
+        #             return new_ini, new_final
+        #
+        #         # Update bounds for next iteration
+        #         curr_ini, curr_final = new_ini, new_final
+        #
+        #     # If it finishes the loop without returning, it failed to converge
+        #     return curr_ini, curr_final
+
+        # -----reucurisve approach, leading to recusrion limit------
         # def second_search(ini, final):
         #     mid = (ini + final) / 2
         #     new_ini = (ini + mid) / 2
         #     new_final = (mid + final) / 2
         #     new_vol = quad(g_r, new_ini, new_final, args=(theta,))[0]
         #
-        #     if abs(new_vol - target) < tol:
+        #     if abs(new_vol - target)/total_mass < tol:
         #         return new_ini, new_final
         #     else:
         #         return second_search(new_ini, new_final)
+        #
+
+
 
         while (vol_a >= target) or (vol_b >= target):
             mid = (a + b) / 2
@@ -92,7 +142,7 @@ class nsmc_sampling:
                 a = mid
             else:
                 res_a, res_b = second_search(a, b)
-                return res_b, res_b, total_mass
+                return res_a, res_b, total_mass
         
         return a, b, total_mass
         # def temp(guess_a):
@@ -206,9 +256,9 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             theta=self.theta_generation()
             _,R_=self.R(theta)
             
-            a,b,total_mass=self.importance_r(gauss_den, R_,theta,0.01,0.98)
-            sampled_r=np.random.uniform(a,b)
-            #sampled_r=np.random.uniform(np.sqrt(self.d)-(2.57/np.sqrt(2)),np.sqrt(self.d)+(2.57/np.sqrt(2)))
+            #a,b,total_mass=self.importance_r(gauss_den, R_,theta,0.01,0.98)
+            #sampled_r=np.random.uniform(a,b)
+            sampled_r=np.random.uniform(np.sqrt(self.d)-(2.57/np.sqrt(2)),np.sqrt(self.d)+(2.57/np.sqrt(2)))
             #sampled_r=np.random.uniform(0,R_)
             sampled_f=np.random.uniform(0,f_max)
 
