@@ -51,52 +51,52 @@ class nsmc_sampling:
         target = percentage_mass * total_mass
 
         a, b = 0, R_
-        vol_a, vol_b = total_mass, total_mass 
+         
+        def second_search(ini, final):
+            cuts = np.linspace(ini, final, 11)
+            bin_areas = np.array([quad(g_r, cuts[i], cuts[i+1], args=(theta,))[0] 
+                                  for i in range(10)])
+            
+            best_a, best_b = ini, final
+            min_width = final - ini
+            found = False
 
-    #     def second_search(ini, final, max_iter=500):
-    #         new_a = ini
-    #         new_b = final
-    #
-    #         damping = 0.7  # Reducing this slightly prevents the 'ping-pong' effect
-    #         iteration = 0
-    #         while iteration < max_iter:
-    #             current_vol = quad(g_r, new_a, new_b, args=(theta,))[0]
-    #             error = target - current_vol
-    #
-    #             if abs(error) / total_mass < tol:
-    #                 print(f"converged in {iteration} iterations")
-    #                 return new_a, new_b
-    #
-    #             h_a = max(g_r(new_a, theta), 1e-12)
-    #             h_b = max(g_r(new_b, theta), 1e-12)
-    #
-    #             # Fixed: Use 'new_a' and 'new_b' here
-    #             if new_a <= 0 and error > 0:
-    #                 step_a = 0
-    #                 step_b = error / h_b
-    #             elif new_b >= R_ and error > 0:
-    #                 step_a = error / h_a
-    #                 step_b = 0
-    #             else:
-    #                 # Fixed: Divide error by 2 so total change doesn't overshoot
-    #                 step_a = (error / 2) / h_a
-    #                 step_b = (error / 2) / h_b
-    #
-    #             new_a -= damping * step_a
-    #             new_b += damping * step_b
-    #
-    #             # Ensure order and bounds
-    #             new_a = max(0, min(new_a, R_))
-    #             new_b = max(0, min(new_b, R_))
-    #
-    #             # Safety: prevent crossing
-    #             if new_a > new_b:
-    #                 new_a, new_b = new_b, new_a
-    #
-    #             iteration += 1
-    #
-    #         print("max_iter hit")
-    #         return new_a, new_b
+            # 3. Sliding Window: Check all consecutive combinations (i to j)
+            for i in range(10):
+                for j in range(i, 10):
+                    current_window_mass = np.sum(bin_areas[i : j+1])
+                    
+                    # If this window captures the target
+                    if current_window_mass >= target:
+                        current_width = cuts[j+1] - cuts[i]
+                        # If it's the narrowest window found so far, keep it
+                        if current_width < min_width:
+                            min_width = current_width
+                            best_a, best_b = cuts[i], cuts[j+1]
+                            found = True
+            
+            #print(current_width)
+            return best_a, best_b
+
+
+        while True:
+            mid = (a + b) / 2
+            vol_a = quad(g_r, a, mid, args=(theta,))[0]
+            vol_b = quad(g_r, mid, b, args=(theta,))[0]
+
+            if vol_a >= target:
+                b = mid
+            elif vol_b >= target:
+                a = mid
+            else:
+                res_a, res_b = second_search(a, b)
+                return res_a, res_b, total_mass
+                #break
+        return a, b, total_mass
+
+
+
+
         # ------solution to recursive approach but max iter gets hitted and gives garbage results------
         # def second_search(ini, final, max_iter=900):
         #     curr_ini, curr_final = ini, final
@@ -127,24 +127,8 @@ class nsmc_sampling:
         #         return new_ini, new_final
         #     else:
         #         return second_search(new_ini, new_final)
-        #
-
-
-
-        while (vol_a >= target) or (vol_b >= target):
-            mid = (a + b) / 2
-            vol_a = quad(g_r, a, mid, args=(theta,))[0]
-            vol_b = quad(g_r, mid, b, args=(theta,))[0]
-
-            if vol_a >= target:
-                b = mid
-            elif vol_b >= target:
-                a = mid
-            else:
-                res_a, res_b = second_search(a, b)
-                return res_a, res_b, total_mass
         
-        return a, b, total_mass
+
         # def temp(guess_a):
         #     current, _ = quad(g_r, guess_a, R_,args=(theta,))
         #     return current - total_mass
@@ -205,34 +189,40 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
 
     def f_r_gaussian(self):
-        """
-        This function returns the d-dimsional multivariate Gaussin density which takes input 'r' a 
-        length from origin and returns the gaussina at that function.
-        Also, it provides 'f_max' a mode value which is to be utilised for the purpose
-        of rejection sampling.
-        
-        Edit: Now I tried to use cholesky to tackle inverse and uses log and then exponetial to make it more numerically stable (not necessary but good addition maybe).
-        """
-        
-        L = np.linalg.cholesky(self.sigma)
-        log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
-        log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
-        def f_r_gauss(r,theta):
-            r_vec, _ = self.R(theta) 
-            x_pos = r * r_vec
-            diff=x_pos-self.mu
-            # Solve L y = diff
-            y = np.linalg.solve(L, diff)
+            """
+            This function returns the d-dimensional multivariate Gaussian density which takes input 'r' a 
+            length from origin and returns the gaussian at that function.
+            Also, it provides 'f_max' a mode value which is to be utilised for the purpose
+            of rejection sampling.
+            
+            Edit: Now I tried to use cholesky to tackle inverse and uses log and then exponential to make it more numerically stable (not necessary but good addition maybe).
+            """
+            
+            L = np.linalg.cholesky(self.sigma)
+            log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
+            log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
+            
+            def f_r_gauss(r, theta):
+                if r <= 0:
+                    return 0.0 # Prevent log(0) error
+                    
+                r_vec, _ = self.R(theta) 
+                x_pos = r * r_vec
+                diff = x_pos - self.mu
+                # Solve L y = diff
+                y = np.linalg.solve(L, diff)
 
-            w = np.dot(y, y)   # = diff^T Sigma^{-1} diff
+                w = np.dot(y, y)   # = diff^T Sigma^{-1} diff
 
-            log_density = log_norm_const - 0.5 * w
-            return (r**((self.d)-1))*(np.exp(log_density))
-       
-        #Mode of chi asymtotically at root(d+lambda^2) where lambda=norm(mu)
-        x_mode=np.sqrt(self.d+np.linalg.norm(self.mu)**2)
-        f_max=f_r_gauss(x_mode,self.theta_generation())
-        return f_r_gauss,f_max
+                log_density = log_norm_const - 0.5 * w
+                
+                log_volume = (self.d - 1) * np.log(r)
+                return np.exp(log_volume + log_density)
+            
+            x_mode = np.sqrt(max(0, self.d - 1 + np.linalg.norm(self.mu)**2))
+            
+            f_max = f_r_gauss(x_mode, self.theta_generation())
+            return f_r_gauss, f_max
 
 
 
@@ -256,9 +246,10 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             theta=self.theta_generation()
             _,R_=self.R(theta)
             
-            #a,b,total_mass=self.importance_r(gauss_den, R_,theta,0.01,0.98)
-            #sampled_r=np.random.uniform(a,b)
-            sampled_r=np.random.uniform(np.sqrt(self.d)-(2.57/np.sqrt(2)),np.sqrt(self.d)+(2.57/np.sqrt(2)))
+            a,b,total_mass=self.importance_r(gauss_den, R_,theta,0.01,0.98)
+            #print(a,b,R_)
+            sampled_r=np.random.uniform(a,b)
+            #sampled_r=np.random.uniform(np.sqrt(self.d)-(5/np.sqrt(2)),np.sqrt(self.d)+(5/np.sqrt(2)))
             #sampled_r=np.random.uniform(0,R_)
             sampled_f=np.random.uniform(0,f_max)
 
