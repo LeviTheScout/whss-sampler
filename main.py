@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.special import beta as beta_func
 from scipy.integrate import quad
 from scipy.optimize import brentq
+from sambal import random_on_cap
 
 class nsmc_sampling:
     """
