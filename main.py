@@ -30,6 +30,12 @@ class nsmc_sampling:
             sample.append(np.random.uniform(0,np.pi))
         sample.append(np.random.uniform(0,2*np.pi))
         return np.array(sample)
+    
+    def caretisan_to_spherical(self,cart):
+        cart=np.array(cart)
+        d=len(cart)
+         
+        return
 
     def R(self,theta):
         """
@@ -145,7 +151,7 @@ class nsmc_sampling:
         #theta_cartesian=
         cartesian_direction=random_on_cap(theta_cartesian,angle)
         #convert caretisan direction to spherical direction  
-        return
+        return cartesian_direction,self.a/(2*np.max(np.abs(cartesian_direction)))
 
 
     def x_y_view(self,accepted):
@@ -232,9 +238,17 @@ class nsmc_sampling_gaussian(nsmc_sampling):
                 
                 log_volume = (self.d - 1) * np.log(r)
                 return np.exp(log_volume + log_density)
+            # 1. Get the largest eigenvalue (variance along the major axis)
+            #eigvals = np.linalg.eigvalsh(self.sigma)
+            #max_var = eigvals[-1] 
+
+            # 2. Get the norm of the mean
+            #mu_norm = np.linalg.norm(self.mu)
+
+            # 3. Solve the radial mode equation using the maximum variance
+            #x_mode = (mu_norm + np.sqrt(mu_norm**2 + 4 * (self.d - 1) * max_var)) / 2.0
             
             x_mode = np.sqrt(max(0, self.d - 1 + np.linalg.norm(self.mu)**2))
-            
             f_max = f_r_gauss(x_mode, self.theta_generation())
             return f_r_gauss, f_max
 
