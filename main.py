@@ -47,6 +47,7 @@ class nsmc_sampling:
         inf_norm = np.max(np.abs(x))
         return x, self.a / (2 * inf_norm)
     
+
     def importance_r(self, g_r, R_, theta, tol, percentage_mass=0.99):
         total_mass = quad(g_r, 0, R_, args=(theta,))[0]
         target = percentage_mass * total_mass
@@ -135,6 +136,18 @@ class nsmc_sampling:
         #     return current - total_mass
         # a_result = brentq(temp, a=0, b=R_) 
     
+    
+    def importance_theta(self,theta,angle=np.pi/4):
+        """
+        Gives random uniformly generted direction around given direction (theta) at about given angle.
+        """
+        #convert theta to caretisan
+        #theta_cartesian=
+        cartesian_direction=random_on_cap(theta_cartesian,angle)
+        #convert caretisan direction to spherical direction  
+        return
+
+
     def x_y_view(self,accepted):
         """
         this function will help us see the 2d projection of the output
