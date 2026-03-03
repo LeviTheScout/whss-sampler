@@ -306,8 +306,8 @@ class nsmc_sampling_beta(nsmc_sampling):
         self.beta=beta
 
     def f_r_beta(self,r,R_):
-        if np.any(r < 0) or np.any(r > R_):
-            return 0
+        # if np.any(r < 0) or np.any(r > R_):
+        #     return 0
         normalization = 1 / (R_ * beta_func(self.alpha, self.beta))
         kernel = (r / R_)**(self.alpha - 1) * (1 - r / R_)**(self.beta - 1)
         return normalization * kernel   
@@ -332,6 +332,19 @@ class nsmc_sampling_beta(nsmc_sampling):
                 rejected.append((theta,sampled_r))
         return accepted,rejected
 
+
+
+class nsmc_sampling_rosenbock(nsmc_sampling):
+
+    def __init__(self, d, a, k,mu,a_rosen,b_array):
+        super().__init__(d, a, k)
+        self.mu=mu
+        self.a_rosen=a_rosen
+        self.b=b_array
+
+    def f_r_rosenbock(self,r):
+        return
+    
 # class nsmc_sampling_x_integrand(nsmc_sampling):
 #     """
 #     Parameters:
@@ -399,4 +412,3 @@ class nsmc_sampling_beta(nsmc_sampling):
 #
 #         f_max
 #         return laplace_den(r)
-                         
