@@ -25,11 +25,9 @@ class nsmc_sampling:
         - First (d-2) angles are uniformly sampled in [0,pi]
         - (d-1)th angle is sampeld uniformly in [0,2*pi]
         """
-        sample=[]
-        for i in range(self.d-2):
-            sample.append(np.random.uniform(0,np.pi))
-        sample.append(np.random.uniform(0,2*np.pi))
-        return np.array(sample)
+        sample=np.random.normal(0, 1, self.d)
+        r = np.linalg.norm(sample)
+        return sample/r
     
     def caretisan_to_spherical(self,cart):
         cart=np.array(cart)
@@ -43,13 +41,7 @@ class nsmc_sampling:
         angle theta in dimisional space. 
         Also, returns the maximum length 'R' along that direcion in the cube.
         """
-        x=np.zeros(theta.shape[0]+1)
-        sins=np.sin(theta)
-        cosines=np.cos(theta)
-        for i in range(len(theta)):
-            x[i]=np.prod(sins[:i])*cosines[i]
-        x[-1]=np.prod(sins)
-        # is this correct? 
+        x=np.array(theta)
         inf_norm = np.max(np.abs(x))
         return x, self.a / (2 * inf_norm)
     
