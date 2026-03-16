@@ -47,7 +47,7 @@ class sampling:
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         """
         def f_max_along_theta(r_vec,f_r):
-            return 
+            return  
         
         possible_samples=[]
         maximums=[]

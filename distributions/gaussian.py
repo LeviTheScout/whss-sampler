@@ -32,12 +32,12 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
             log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
             
-            def f_r_gauss(r, theta):
+            def f_r_gauss(r, theta): # here r is distance from origin not directional vector.
                 if r <= 0:
                     return 0.0 # Prevent log(0) error
                     
                 r_vec, _ = self.R(theta) 
-                x_pos = r * r_vec
+                x_pos = r*r_vec
                 diff = x_pos - self.mu
                 # Solve L y = diff
                 y = np.linalg.solve(L, diff)
