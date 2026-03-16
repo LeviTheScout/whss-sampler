@@ -1,12 +1,53 @@
 import numpy as np
 
 class sampling:
-    def get_samples(self,f_r,alpha=0.1):
+
+    def sampling_f_r(self,f_r):
+        """
+        The main sampling function utilising the concept of n-sphere Monte
+        Carlo technique and rejection sampling.
+        Returns:
+            Two arrays, accepted samples and rejected samples.
+        f_r: gives two things, a density function and f_max value in this one.
+        
+        Note: r^d-1 is alrady multplied in this f_r function.
+        """
+        
+        
+        density=f_r[0]
+        f_max=f_r[1]+0.0
+        #f_max give along with f_r , also doing +0,01 in f_max, might want to remove that later
+        
+        accepted=[]
+        rejected=[]
+        while len(accepted)<self.k:
+
+            theta=self.theta_generation()
+            _,R_=self.R(theta)
+            
+            a,b,total_mass=self.importance_r(density, R_,theta,0.01,0.98)
+            #print(a,b,R_)
+            sampled_r=np.random.uniform(a,b)
+            #sampled_r=np.random.uniform(np.sqrt(self.d)-(5/np.sqrt(2)),np.sqrt(self.d)+(5/np.sqrt(2)))
+            #sampled_r=np.random.uniform(0,R_)
+            sampled_f=np.random.uniform(0,f_max)
+
+            if sampled_f<=density(sampled_r,theta):
+                accepted.append((theta,sampled_r))
+            else:
+                rejected.append((theta,sampled_r))
+        
+        return accepted,rejected
+
+    
+
+
+    def sampling_f_r_new(self,f_r,alpha=0.1):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         """
         def f_max_along_theta(r_vec,f_r):
-            return
+            return 
         
         possible_samples=[]
         maximums=[]

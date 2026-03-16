@@ -62,38 +62,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             f_max = f_r_gauss(x_mode, self.theta_generation())
             return f_r_gauss, f_max
 
-
-
     def get_samples(self):
-        """
-        The main sampling function utilising the concept of n-sphere Monte
-        Carlo technique and rejection sampling.
-        Returns:
-            Two arrays, accepted samples and rejected samples.
-        """
-        
-        temp=self.f_r_gaussian()
-        gauss_den=temp[0]
-        f_max=temp[1]+0.0
-        #f_max give along with f_r , also doing +0,01 in f_max, might want to remove that later
-        
-        accepted=[]
-        rejected=[]
-        while len(accepted)<self.k:
-
-            theta=self.theta_generation()
-            _,R_=self.R(theta)
-            
-            a,b,total_mass=self.importance_r(gauss_den, R_,theta,0.01,0.98)
-            #print(a,b,R_)
-            sampled_r=np.random.uniform(a,b)
-            #sampled_r=np.random.uniform(np.sqrt(self.d)-(5/np.sqrt(2)),np.sqrt(self.d)+(5/np.sqrt(2)))
-            #sampled_r=np.random.uniform(0,R_)
-            sampled_f=np.random.uniform(0,f_max)
-
-            if sampled_f<=gauss_den(sampled_r,theta):
-                accepted.append((theta,sampled_r))
-            else:
-                rejected.append((theta,sampled_r))
-        
+        gauss_den=self.f_r_gaussian()
+        accepted,rejected=self.sampling_f_r(gauss_den)
         return accepted,rejected
