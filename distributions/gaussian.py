@@ -84,11 +84,11 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             theta=self.theta_generation()
             _,R_=self.R(theta)
             
-            #a,b,total_mass=self.importance_r(gauss_den, R_,theta,0.01,0.98)
+            a,b,total_mass=self.importance_r(gauss_den, R_,theta,0.01,0.98)
             #print(a,b,R_)
-            #sampled_r=np.random.uniform(a,b)
+            sampled_r=np.random.uniform(a,b)
             #sampled_r=np.random.uniform(np.sqrt(self.d)-(5/np.sqrt(2)),np.sqrt(self.d)+(5/np.sqrt(2)))
-            sampled_r=np.random.uniform(0,R_)
+            #sampled_r=np.random.uniform(0,R_)
             sampled_f=np.random.uniform(0,f_max)
 
             if sampled_f<=gauss_den(sampled_r,theta):
