@@ -71,7 +71,7 @@ class nsmc_sampling_rosenbock(nsmc_sampling):
     
             current_x_idx = 1
             
-            for block_coeffs in b_rosen:
+            for block_coeffs in self.b_rosen:
                 x_prev = x1 
                 # x_j,1=x1
                 for coeff in block_coeffs:
@@ -82,7 +82,7 @@ class nsmc_sampling_rosenbock(nsmc_sampling):
                     x_prev = x_curr
                     current_x_idx += 1
             numerator = np.exp(log_numerator)
-            g_r=(r**(d-1)) * (numerator/normaling_const)
+            g_r=(r**(self.d-1)) * (numerator/normaling_const)
             return g_r
 
         return rosenbrock_density
