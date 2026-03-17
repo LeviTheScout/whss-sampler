@@ -17,8 +17,8 @@ class nsmc_sampling_rosenbock(nsmc_sampling):
         normaling_const = (np.pi**(self.d / 2.0)) / (np.sqrt(self.a_rosen) * prod_sqrt_b)
         
         def rosenbrock_density(r,theta): # here r is distance from origin not directional vector.
-            r_vec,_ = self.R(theta)
-            x=r*r_vec
+        
+            x=r*theta
             x1 = x[0]
             log_numerator = -self.a_rosen * (x1 - self.mu)**2
     

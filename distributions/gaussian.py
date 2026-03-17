@@ -36,8 +36,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
                 if r <= 0:
                     return 0.0 # Prevent log(0) error
                     
-                r_vec, _ = self.R(theta) 
-                x_pos = r*r_vec
+                x_pos = r*theta
                 diff = x_pos - self.mu
                 # Solve L y = diff
                 y = np.linalg.solve(L, diff)

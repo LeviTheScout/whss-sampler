@@ -24,7 +24,7 @@ class utilities:
         """
         x=np.array(theta)
         inf_norm = np.max(np.abs(x))
-        return x, self.a / (2 * inf_norm)
+        return (self.a / (2 * inf_norm))
     
 
     def x_y_view(self, accepted):

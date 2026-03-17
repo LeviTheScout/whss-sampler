@@ -24,7 +24,7 @@ class sampling:
         while len(accepted)<self.k:
 
             theta=self.theta_generation()
-            _,R_=self.R(theta)
+            R_=self.R(theta)
             
             a,b,total_mass=self.importance_r(density, R_,theta,0.01,0.98)
             #print(a,b,R_)
@@ -47,7 +47,7 @@ class sampling:
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         """
-        def f_max_along_theta(a,b,r_vec,f_r):
+        def f_max_along_theta(a,b,theta,f_r):
 
             return  
 
@@ -57,15 +57,15 @@ class sampling:
     
         for i in range(self.k+round(alpha*self.k)):
             theta=self.theta_generation(self.d)
-            r_vec,R_=self.R(self.a,theta)
+            R_=self.R(self.a,theta)
 
             #a,b,total_mass=self.importance_r(f_r, R_,theta,0.01,0.98)
             
-            local_f_max=f_max_along_theta(a,b,r_vec,f_r)
+            local_f_max=f_max_along_theta(a,b,theta,f_r)
             sampled_r=np.random.uniform(0,R_) #use importance sampling in R , [a,b]
-            f_value=(sampled_r**(self.d-1))*f_r(theta,sampled_r)
+            f_value=(sampled_r**(self.d-1))*f_r(sampled_r,theta)
             u=np.random.uniform(0,1)
-            possible_samples.append((r_vec,u,sampled_r,f_value))
+            possible_samples.append((theta,u,sampled_r,f_value))
             maximums.append(local_f_max)
         emperical_f_max=np.max(np.array(maximums))+0.01 #added a bit of buffer.
         accepted=[]
@@ -76,20 +76,20 @@ class sampling:
             else:
                 rejected.append((possible_samples[i][0],possible_samples[2]))
 
-    '''
-    if i get less than k samples, then i will do normal rejection sampling 
-    with emperical f_max for remaining samples, i will deploy the importance sampling in r, 
-    hence it should not come to this case more often.
-    '''
+        '''
+        if i get less than k samples, then i will do normal rejection sampling 
+        with emperical f_max for remaining samples, i will deploy the importance sampling in r, 
+        hence it should not come to this case more often.
+        '''
         
         while len(accepted)<self.k:
             theta=self.theta_generation(self.d)
-            r_vec,R_=self.R(self.a,theta)
+            R_=self.R(self.a,theta)
             sampled_r=np.random.uniform(0,R_)  #change to [a,b]
             sampled_f=np.random.uniform(0,emperical_f_max)
-            if sampled_f<=(sampled_r**(self.d-1))*f_r(theta,sampled_r):
+            if sampled_f<=(sampled_r**(self.d-1))*f_r(sampled_r,theta):
                 accepted.append((theta,sampled_r))
             else:
                 rejected.append((theta,sampled_r))
         return accepted,rejected
-            
+                

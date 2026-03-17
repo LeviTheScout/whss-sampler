@@ -38,7 +38,7 @@ class nsmc_sampling_beta(nsmc_sampling):
 
         while len(accepted)<self.k:
             theta=self.theta_generation()
-            _,R_=self.R(theta)
+            R_=self.R(theta)
             sampled_r=np.random.uniform(0,R_)
             sampled_f=np.random.uniform(0,f_max)
             if sampled_f<=(sampled_r**(self.d-1))*self.f_r_beta(sampled_r,R_):
