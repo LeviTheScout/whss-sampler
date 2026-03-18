@@ -8,6 +8,10 @@ from sambal import random_on_cap
 class importance_sampling:
 
     def importance_r(self, g_r, R_, theta, tol, percentage_mass=0.99):
+        '''
+        This finds interval [a,b] for given directions thetas such that this smaller region
+        has percentage_mass*total area under the curve of g_r function from [0,R_] support.
+        '''
         total_mass = quad(g_r, 0, R_, args=(theta,))[0]
         target = percentage_mass * total_mass
 

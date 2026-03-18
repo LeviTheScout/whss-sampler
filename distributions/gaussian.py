@@ -20,6 +20,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
     def f_r_gaussian(self):
             """
+            - Vectorised. 
             This function returns the d-dimensional multivariate Gaussian density which takes input 'r' a 
             length from origin and returns the gaussian at that function.
             Also, it provides 'f_max' a mode value which is to be utilised for the purpose
@@ -32,20 +33,21 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
             log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
             
-            def f_r_gauss(r, theta): # here r is distance from origin not directional vector.
-                if r <= 0:
-                    return 0.0 # Prevent log(0) error
+            def f_r_gauss(r, theta_batch): # here r is distance from origin not directional vector.
+                # r will be a (batch_size,) dim vector and theta_batch will be (batch_size,d) dim matrix
+                # hence each row of theta_batch will be one sample
+
                     
-                x_pos = r*theta
+                x_pos = r[:,None]*theta_batch
                 diff = x_pos - self.mu
                 # Solve L y = diff
-                y = np.linalg.solve(L, diff)
+                y = np.linalg.solve(L, diff.T).T
 
-                w = np.dot(y, y)   # = diff^T Sigma^{-1} diff
+                w = np.sum(y**2, axis=1)   # = diff^T Sigma^{-1} diff
 
                 log_density = log_norm_const - 0.5 * w
                 
-                log_volume = (self.d - 1) * np.log(r)
+                log_volume = (self.d - 1) * np.log(r+1e-300)
                 return np.exp(log_volume + log_density)
             # 1. Get the largest eigenvalue (variance along the major axis)
             #eigvals = np.linalg.eigvalsh(self.sigma)
@@ -59,6 +61,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             
             x_mode = np.sqrt(max(0, self.d - 1 + np.linalg.norm(self.mu)**2))
             f_max = f_r_gauss(x_mode, self.theta_generation())
+            
             return f_r_gauss, f_max
 
     def get_samples(self):

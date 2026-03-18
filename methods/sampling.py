@@ -2,7 +2,7 @@ import numpy as np
 
 class sampling:
 
-    def sampling_f_r(self,f_r):
+    def sampling_f_r(self,f_r,batch_size):
         """
         The main sampling function utilising the concept of n-sphere Monte
         Carlo technique and rejection sampling.
@@ -21,6 +21,11 @@ class sampling:
         
         accepted=[]
         rejected=[]
+        
+        thetas=self.theta_generation(batch_size)
+        R_=self.R(thetas)
+        
+        
         while len(accepted)<self.k:
 
             theta=self.theta_generation()

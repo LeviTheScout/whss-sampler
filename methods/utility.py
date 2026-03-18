@@ -4,27 +4,27 @@ import matplotlib.pyplot as plt
 
 class utilities:
 
-    def theta_generation(self):
+    def theta_generation(self,batch_size):
         """
-        This function generates the vector of angles in d-dimsion length 
+        This function generates the vectors of angles in d-dimsion length 
         being d-1. 
         - First (d-2) angles are uniformly sampled in [0,pi]
         - (d-1)th angle is sampeld uniformly in [0,2*pi]
+        - it generates batch_size number of such samples.
         """
-        sample=np.random.normal(0, 1, self.d)
-        r = np.linalg.norm(sample)
-        return sample/r
+        samples=np.random.normal(0, 1, (batch_size,self.d))
+        r = np.linalg.norm(samples,axis=1)
+        return samples/r[:,None]
     
 
-    def R(self,theta):
+    def R(self,thetas):
         """
-        This function genertes unit vecotor r along the randomly generated
-        angle theta in dimisional space. 
-        Also, returns the maximum length 'R' along that direcion in the cube.
+        Returns the maximum length 'R' along that direcions of the 
+        thetas given in the batch for CUBE of side length a.
         """
-        x=np.array(theta)
-        inf_norm = np.max(np.abs(x))
-        return (self.a / (2 * inf_norm))
+        inf_norm = np.max(np.abs(thetas),axis=1)
+        R_vec=self.a/(2*inf_norm)
+        return R_vec
     
 
     def x_y_view(self, accepted):
