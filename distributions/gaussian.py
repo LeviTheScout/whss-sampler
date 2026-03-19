@@ -36,6 +36,11 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             def f_r_gauss(r, theta_batch): # here r is distance from origin not directional vector.
                 # r will be a (batch_size,) dim vector and theta_batch will be (batch_size,d) dim matrix
                 # hence each row of theta_batch will be one sample
+                r = np.atleast_1d(r)
+
+                theta_batch = np.asarray(theta_batch)
+                if theta_batch.ndim == 1:
+                    theta_batch = theta_batch[None, :]   # (1, d)
 
                     
                 x_pos = r[:,None]*theta_batch
@@ -48,7 +53,12 @@ class nsmc_sampling_gaussian(nsmc_sampling):
                 log_density = log_norm_const - 0.5 * w
                 
                 log_volume = (self.d - 1) * np.log(r+1e-300)
-                return np.exp(log_volume + log_density)
+
+                result=np.exp(log_volume + log_density)
+                if result.shape[0]==1:
+                    return result[0]
+                return result            
+
             # 1. Get the largest eigenvalue (variance along the major axis)
             #eigvals = np.linalg.eigvalsh(self.sigma)
             #max_var = eigvals[-1] 
@@ -58,9 +68,16 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
             # 3. Solve the radial mode equation using the maximum variance
             #x_mode = (mu_norm + np.sqrt(mu_norm**2 + 4 * (self.d - 1) * max_var)) / 2.0
+            mu_norm = np.linalg.norm(self.mu)
+            x_mode = np.sqrt(self.d - 1) + mu_norm
+
             
-            x_mode = np.sqrt(max(0, self.d - 1 + np.linalg.norm(self.mu)**2))
-            f_max = f_r_gauss(x_mode, self.theta_generation())
+            if mu_norm > 0:
+                theta_star = self.mu / mu_norm
+            else:
+                theta_star = np.zeros(self.d)
+                theta_star[0] = 1
+            f_max = f_r_gauss(np.array([x_mode]), theta_star[None,:])
             
             return f_r_gauss, f_max
 

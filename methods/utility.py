@@ -40,8 +40,9 @@ class utilities:
 
         x_accepted, y_accepted = [], []
 
-        for a, r in accepted:
-
+        for i in accepted:
+            a=i[:-1]
+            r=i[-1]
             a = np.asarray(a)
 
             x_accepted.append(r * a[0])

@@ -2,7 +2,7 @@ import numpy as np
 
 class sampling:
 
-    def sampling_f_r(self,f_r,batch_size):
+    def sampling_f_r(self,f_r,batch_size=128):
         """
         The main sampling function utilising the concept of n-sphere Monte
         Carlo technique and rejection sampling.
@@ -19,31 +19,51 @@ class sampling:
         #f_max give along with f_r , also doing +0,01 in f_max, 
         # might want to remove that later
         
-        accepted=[]
-        rejected=[]
-        
-        thetas=self.theta_generation(batch_size)
-        R_=self.R(thetas)
-        
-        
-        while len(accepted)<self.k:
-
-            theta=self.theta_generation()
-            R_=self.R(theta)
-            
-            a,b,total_mass=self.importance_r(density, R_,theta,0.01,0.98)
-            #print(a,b,R_)
-            sampled_r=np.random.uniform(a,b)
-            #sampled_r=np.random.uniform(np.sqrt(self.d)-(5/np.sqrt(2)),np.sqrt(self.d)+(5/np.sqrt(2)))
-            #sampled_r=np.random.uniform(0,R_)
+        accepted_theta_list,accepted_r_list=[],[]
+        rejected_theta_list,rejected_r_list=[],[]
+        accepted_count=0
+        while accepted_count<self.k:
+            theta_batch=self.theta_generation(batch_size)
+            R_batch=self.R(theta_batch)
+            a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+            sampled_r_batch=np.random.uniform(a_batch,b_batch)
             sampled_f=np.random.uniform(0,f_max)
+            density_vals=density(sampled_r_batch,theta_batch)
+            mask= sampled_f <= density_vals
+            accepted_theta_list.append(theta_batch[mask])
+            accepted_r_list.append(sampled_r_batch[mask])
+            rejected_theta_list.append(theta_batch[~mask])
+            rejected_r_list.append(sampled_r_batch[~mask])
 
-            if sampled_f<=density(sampled_r,theta):
-                accepted.append((theta,sampled_r))
-            else:
-                rejected.append((theta,sampled_r))
-        
-        return accepted,rejected
+            accepted_count+=np.sum(mask)
+        a_theta=np.concatenate(accepted_theta_list, axis=0)
+        a_r=np.concatenate(accepted_r_list, axis=0)
+        r_theta=np.concatenate(rejected_theta_list, axis=0)
+        r_r=np.concatenate(rejected_r_list, axis=0)
+        accepted=np.concatenate([a_theta, a_r[:, None]], axis=1)
+        rejceted=np.concatenate([r_theta, r_r[:, None]], axis=1)
+
+        return accepted,rejceted
+
+
+        # while len(accepted)<self.k:
+        #
+        #     theta=self.theta_generation()
+        #     R_=self.R(theta)
+        #
+        #     a,b,total_mass=self.importance_r(density, R_,theta,0.01,0.98)
+        #     #print(a,b,R_)
+        #     sampled_r=np.random.uniform(a,b)
+        #     #sampled_r=np.random.uniform(np.sqrt(self.d)-(5/np.sqrt(2)),np.sqrt(self.d)+(5/np.sqrt(2)))
+        #     #sampled_r=np.random.uniform(0,R_)
+        #     sampled_f=np.random.uniform(0,f_max)
+        #
+        #     if sampled_f<=density(sampled_r,theta):
+        #         accepted.append((theta,sampled_r))
+        #     else:
+        #         rejected.append((theta,sampled_r))
+        #
+        #return accepted,rejected
 
     
 
