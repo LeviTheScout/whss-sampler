@@ -15,9 +15,10 @@ class sampling:
         
         
         density=f_r[0]
-        f_max=f_r[1]+0.01
-        #f_max give along with f_r , also doing +0,01 in f_max, 
-        # might want to remove that later
+        f_max=f_r[1]
+        # "f_max give along with f_r , also doing +0,01 in f_max, 
+        # might want to remove that later"
+        # THIS CAUSED ISSUE, DONT EVER ADD CONSTANT LIKE THIS.
         
         accepted_theta_list,accepted_r_list=[],[]
         rejected_theta_list,rejected_r_list=[],[]
@@ -37,7 +38,6 @@ class sampling:
             accepted_r_list.append(sampled_r_batch[mask])
             rejected_theta_list.append(theta_batch[~mask])
             rejected_r_list.append(sampled_r_batch[~mask])
-            print(np.std(a_batch),np.std(b_batch))
             accepted_count+=np.sum(mask)
         a_theta=np.concatenate(accepted_theta_list, axis=0)
         a_r=np.concatenate(accepted_r_list, axis=0)
@@ -87,7 +87,7 @@ class sampling:
             theta=self.theta_generation(self.d)
             R_=self.R(self.a,theta)
 
-            #a,b,total_mass=self.importance_r(f_r, R_,theta,0.01,0.98)
+            a,b,total_mass=self.importance_r(f_r, R_,theta,0.01,0.98)
             
             local_f_max=f_max_along_theta(a,b,theta,f_r)
             sampled_r=np.random.uniform(0,R_) #use importance sampling in R , [a,b]
