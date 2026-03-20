@@ -52,7 +52,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
                 log_density = log_norm_const - 0.5 * w
                 
-                log_volume = (self.d - 1) * np.log(r+1e-300)
+                log_volume = (self.d - 1) * np.log(r)
 
                 result=np.exp(log_volume + log_density)
                 if result.shape[0]==1:
@@ -78,15 +78,21 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             #     theta_star = np.zeros(self.d)
             #     theta_star[0] = 1
             # f_max = f_r_gauss(np.array([x_mode]), theta_star[None,:])
-            x_mode = np.sqrt(max(0, self.d - 1 + np.linalg.norm(self.mu)**2))
-            mu_norm = np.linalg.norm(self.mu)
-            if mu_norm > 0:
-                theta_star = self.mu / mu_norm
-            else:
-                theta_star = np.zeros(self.d)
-                theta_star[0] = 1
-
-            f_max = f_r_gauss(x_mode, theta_star) 
+            
+            #
+            # x_mode = np.sqrt(max(0, self.d - 1 + np.linalg.norm(self.mu)**2))
+            # mu_norm = np.linalg.norm(self.mu)
+            # if mu_norm > 0:
+            #     theta_star = self.mu / mu_norm
+            # else:
+            #     theta_star = np.zeros(self.d)
+            #     theta_star[0] = 1
+            #
+            # f_max = f_r_gauss(x_mode, theta_star) 
+            r_mode = np.sqrt(max(0, self.d - 1))
+            theta_star = np.zeros(self.d)
+            theta_star[0] = 1.0
+            f_max = f_r_gauss(r_mode, theta_star) * 1.05
             return f_r_gauss, f_max
 
     def get_samples(self):

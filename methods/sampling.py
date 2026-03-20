@@ -30,14 +30,14 @@ class sampling:
             R_batch=self.R(theta_batch)
             a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
             sampled_r_batch=np.random.uniform(a_batch,b_batch)
-            sampled_f=np.random.uniform(0,f_max)
+            sampled_f=np.random.uniform(0,f_max,size=batch_size)
             density_vals=density(sampled_r_batch,theta_batch)
             mask= sampled_f <= density_vals
             accepted_theta_list.append(theta_batch[mask])
             accepted_r_list.append(sampled_r_batch[mask])
             rejected_theta_list.append(theta_batch[~mask])
             rejected_r_list.append(sampled_r_batch[~mask])
-
+            print(np.std(a_batch),np.std(b_batch))
             accepted_count+=np.sum(mask)
         a_theta=np.concatenate(accepted_theta_list, axis=0)
         a_r=np.concatenate(accepted_r_list, axis=0)
