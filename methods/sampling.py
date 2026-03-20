@@ -23,6 +23,9 @@ class sampling:
         rejected_theta_list,rejected_r_list=[],[]
         accepted_count=0
         while accepted_count<self.k:
+            if np.abs(accepted_count-self.k)<batch_size:
+                batch_size=2*np.abs(accepted_count-self.k)            
+
             theta_batch=self.theta_generation(batch_size)
             R_batch=self.R(theta_batch)
             a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
