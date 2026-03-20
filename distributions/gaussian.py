@@ -68,17 +68,25 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
             # 3. Solve the radial mode equation using the maximum variance
             #x_mode = (mu_norm + np.sqrt(mu_norm**2 + 4 * (self.d - 1) * max_var)) / 2.0
+            # mu_norm = np.linalg.norm(self.mu)
+            # x_mode = np.sqrt(self.d - 1) + mu_norm
+            #
+            #
+            # if mu_norm > 0:
+            #     theta_star = self.mu / mu_norm
+            # else:
+            #     theta_star = np.zeros(self.d)
+            #     theta_star[0] = 1
+            # f_max = f_r_gauss(np.array([x_mode]), theta_star[None,:])
+            x_mode = np.sqrt(max(0, self.d - 1 + np.linalg.norm(self.mu)**2))
             mu_norm = np.linalg.norm(self.mu)
-            x_mode = np.sqrt(self.d - 1) + mu_norm
-
-            
             if mu_norm > 0:
                 theta_star = self.mu / mu_norm
             else:
                 theta_star = np.zeros(self.d)
                 theta_star[0] = 1
-            f_max = f_r_gauss(np.array([x_mode]), theta_star[None,:])
-            
+
+            f_max = f_r_gauss(x_mode, theta_star) 
             return f_r_gauss, f_max
 
     def get_samples(self):
