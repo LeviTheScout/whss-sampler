@@ -75,12 +75,12 @@ class sampling:
     
 
 
-    def sampling_f_r_new(self,f_r,alpha=0.1):
+    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         """
         def f_max_along_theta(a,b,theta,f_r):
-
+            
             return  
 
         
@@ -88,16 +88,24 @@ class sampling:
         maximums=[]
     
         for i in range(self.k+round(alpha*self.k)):
-            theta=self.theta_generation(self.d)
-            R_=self.R(self.a,theta)
-
-            a,b,total_mass=self.importance_r(f_r, R_,theta,0.01,0.98)
             
-            local_f_max=f_max_along_theta(a,b,theta,f_r)
-            sampled_r=np.random.uniform(0,R_) #use importance sampling in R , [a,b]
-            f_value=(sampled_r**(self.d-1))*f_r(sampled_r,theta)
-            u=np.random.uniform(0,1)
-            possible_samples.append((theta,u,sampled_r,f_value))
+
+            theta_batch=self.theta_generation(batch_size)
+            R_batch=self.R(theta_batch)
+            a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+            
+            # theta=self.theta_generation(self.d)
+            # R_=self.R(self.a,theta)
+            #
+            # a,b,total_mass=self.importance_r(f_r, R_,theta,0.01,0.98)
+            
+            local_f_max=f_max_along_theta(a_batch,b_batch,theta_batch,f_r)
+            sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
+            density_vals=density(sampled_r_batch,theta_batch)
+            u=np.random.uniform(0,1,batch_size)
+            #this possible_samples might need to be changed for this vectorised form.
+            possible_samples.append((theta_batch,u,sampled_r_batch,density_vals))
+            #VECTORISATION LEFT FROM HERE.
             maximums.append(local_f_max)
         emperical_f_max=np.max(np.array(maximums))
         accepted=[]
