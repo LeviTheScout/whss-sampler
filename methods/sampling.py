@@ -1,8 +1,9 @@
 import numpy as np
+from tqdm import tqdm
 
 class sampling:
 
-    def sampling_f_r(self,f_r,batch_size=128):
+    def sampling_f_r(self,f_r,batch_size=256):
         """
         The main sampling function utilising the concept of n-sphere Monte
         Carlo technique and rejection sampling.
@@ -11,8 +12,7 @@ class sampling:
         f_r: gives two things, a density function and f_max value in this one.
         
         Note: r^d-1 is alrady multplied in this f_r function.
-        """
-        
+        """        
         
         density=f_r[0]
         f_max=f_r[1]
@@ -22,23 +22,28 @@ class sampling:
         
         accepted_theta_list,accepted_r_list=[],[]
         rejected_theta_list,rejected_r_list=[],[]
-        accepted_count=0
-        while accepted_count<self.k:
-            if np.abs(accepted_count-self.k)<batch_size:
-                batch_size=2*np.abs(accepted_count-self.k)            
+        with tqdm(total=self.k,unit='accepted samples') as pbar:
+            accepted_count=0
+            previous=0
+            while accepted_count<self.k:
+                if np.abs(accepted_count-self.k)<batch_size:
+                    batch_size=2*np.abs(accepted_count-self.k)            
 
-            theta_batch=self.theta_generation(batch_size)
-            R_batch=self.R(theta_batch)
-            a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
-            sampled_r_batch=np.random.uniform(a_batch,b_batch)
-            sampled_f=np.random.uniform(0,f_max,size=batch_size)
-            density_vals=density(sampled_r_batch,theta_batch)
-            mask= sampled_f <= density_vals
-            accepted_theta_list.append(theta_batch[mask])
-            accepted_r_list.append(sampled_r_batch[mask])
-            rejected_theta_list.append(theta_batch[~mask])
-            rejected_r_list.append(sampled_r_batch[~mask])
-            accepted_count+=np.sum(mask)
+                theta_batch=self.theta_generation(batch_size)
+                R_batch=self.R(theta_batch)
+                a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                sampled_r_batch=np.random.uniform(a_batch,b_batch)
+                sampled_f=np.random.uniform(0,f_max,size=batch_size)
+                density_vals=density(sampled_r_batch,theta_batch)
+                mask= sampled_f <= density_vals
+                accepted_theta_list.append(theta_batch[mask])
+                accepted_r_list.append(sampled_r_batch[mask])
+                rejected_theta_list.append(theta_batch[~mask])
+                rejected_r_list.append(sampled_r_batch[~mask])
+                accepted_count+=np.sum(mask)
+                pbar.update(accepted_count-previous)
+                previous=accepted_count
+                # print(len(sampled_r_batch[~mask]),len(sampled_r_batch[mask]))
         a_theta=np.concatenate(accepted_theta_list, axis=0)
         a_r=np.concatenate(accepted_r_list, axis=0)
         r_theta=np.concatenate(rejected_theta_list, axis=0)
@@ -47,7 +52,6 @@ class sampling:
         rejceted=np.concatenate([r_theta, r_r[:, None]], axis=1)
 
         return accepted,rejceted
-
 
         # while len(accepted)<self.k:
         #
@@ -95,7 +99,7 @@ class sampling:
             u=np.random.uniform(0,1)
             possible_samples.append((theta,u,sampled_r,f_value))
             maximums.append(local_f_max)
-        emperical_f_max=np.max(np.array(maximums))+0.01 #added a bit of buffer.
+        emperical_f_max=np.max(np.array(maximums))
         accepted=[]
         rejected=[]
         for i in range(len(possible_samples)):
