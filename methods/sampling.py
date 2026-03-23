@@ -107,19 +107,21 @@ class sampling:
             local_f_max_batch=f_max_along_theta(a_batch,b_batch,theta_batch)
             sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
             density_vals=density(sampled_r_batch,theta_batch)
-            u=np.random.uniform(0,1,batch_size)
+            u_batch=np.random.uniform(0,1,batch_size)
             #this possible_samples might need to be changed for this vectorised form.
-            possible_samples.append((theta_batch,u,sampled_r_batch,density_vals))
+            
+            possible_samples.extend(zip(theta_batch,u_batch,sampled_r_batch,density_vals))
             #Append only the maximum of the whole batch.
             maximums.append(local_f_max_batch)
         emperical_f_max=np.max(np.array(maximums))
         accepted=[]
         rejected=[]
-        for i in range(len(possible_samples)):
-            if possible_samples[i][1]*emperical_f_max<=possible_samples[i][3]:
-                accepted.append((possible_samples[i][0],possible_samples[2]))
-            else:
-                rejected.append((possible_samples[i][0],possible_samples[2]))
+        
+        mask=emperical_f_max* possible_samples[:,1] < possible_samples[:,3]
+        accepted.append(possible_samples[mask])
+        rejected.append(possible_samples[~mask])
+
+
 
         '''
         if i get less than k samples, then i will do normal rejection sampling 
@@ -128,6 +130,7 @@ class sampling:
 
         - NO. Sir's idea is to go for more sample same as previous loop, and if I find
         the emperical_f_max higher than previous one, then we do retrospective prunning. 
+        
         - Will do this newer sample search for some number with respect to remaining numbner
         of samples. something like --- 
         (remaining_no_samples)+(remaining_no_samples)*alpha
@@ -137,6 +140,8 @@ class sampling:
         even smaller.)
         '''
         
+        
+
         while len(accepted)<self.k:
             theta=self.theta_generation(self.d)
             R_=self.R(self.a,theta)
