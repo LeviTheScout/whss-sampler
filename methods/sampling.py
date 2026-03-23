@@ -85,42 +85,38 @@ class sampling:
             It will generate the maximum of f_r across the whole batch. Returns only 
             one maximum value among all inputs of the batch.
             """
-
+            
             return  
 
         
-        possible_samples=[]
         maximums=[]
-    
-        for i in range(round(self.k/batch_size)+round((self.k/batch_size)*alpha)):
-            # taking approximately 
+        def batch_sampling(no_samples):    
+            for i in range(np.max(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
+                # taking approximately 
 
-            theta_batch=self.theta_generation(batch_size)
-            R_batch=self.R(theta_batch)
-            a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
-            
-            # theta=self.theta_generation(self.d)
-            # R_=self.R(self.a,theta)
-            #
-            # a,b,total_mass=self.importance_r(f_r, R_,theta,0.01,0.98)
-            
-            local_f_max_batch=f_max_along_theta(a_batch,b_batch,theta_batch)
-            sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
-            density_vals=density(sampled_r_batch,theta_batch)
-            u_batch=np.random.uniform(0,1,batch_size)
-            #this possible_samples might need to be changed for this vectorised form.
-            
-            possible_samples.extend(zip(theta_batch,u_batch,sampled_r_batch,density_vals))
-            #Append only the maximum of the whole batch.
-            maximums.append(local_f_max_batch)
-        emperical_f_max=np.max(np.array(maximums))
-        accepted=[]
-        rejected=[]
-        
-        mask=emperical_f_max* possible_samples[:,1] < possible_samples[:,3]
-        accepted.append(possible_samples[mask])
-        rejected.append(possible_samples[~mask])
+                possible_samples=[]
+                theta_batch=self.theta_generation(batch_size)
+                R_batch=self.R(theta_batch)
+                a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                
+                local_f_max_batch=f_max_along_theta(a_batch,b_batch,theta_batch)
+                sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
+                density_vals=density(sampled_r_batch,theta_batch)
+                u_batch=np.random.uniform(0,1,batch_size)
+                #this possible_samples might need to be changed for this vectorised form.
+                
+                possible_samples.extend(zip(theta_batch,u_batch,sampled_r_batch,density_vals))
+                #Append only the maximum of the whole batch.
+                maximums.append(local_f_max_batch)
 
+            emperical_f_max=np.max(np.array(maximums))
+            accepted=[]
+            rejected=[]
+            possible_samples=np.array(possible_samples)
+            mask=emperical_f_max* possible_samples[:,1]<possible_samples[:,3]
+            accepted.append(possible_samples[mask])
+            rejected.append(possible_samples[~mask])
+            return accepted,rejected,emperical_f_max
 
 
         '''
@@ -138,18 +134,28 @@ class sampling:
         - Might work, since there is less chance of finding bigger_f_max. if i do then 
         i will only have to see ONLY previous accepted samples (not rejected ones since they are 
         even smaller.)
-        '''
-        
-        
 
-        while len(accepted)<self.k:
-            theta=self.theta_generation(self.d)
-            R_=self.R(self.a,theta)
-            sampled_r=np.random.uniform(0,R_)  #change to [a,b]
-            sampled_f=np.random.uniform(0,emperical_f_max)
-            if sampled_f<=(sampled_r**(self.d-1))*density(sampled_r,theta):
-                accepted.append((theta,sampled_r))
-            else:
-                rejected.append((theta,sampled_r))
+        - this surely will increase rejection ratio?
+        '''
+                
+        with tqdm(total=self.k,unit='accepted samples') as pbar:
+            previous=0
+            accepted,rejected,emperical_f_max=batch_sampling(self.k)
+            accepted_count=len(accepted)
+            while (self.k-accepted_count)>0:
+                remaining=self.k-len(accepted)
+                new_acc,new_reject,new_emp_max=batch_sampling(remaining)
+                if new_emp_max<=emperical_f_max:
+                    accepted.extend(new_acc)
+                else:
+                    mask= emperical_f_max*np.array(accepted)[:,1]<np.array(accepted)[:,3]
+                
+                    accepted.extend(np.array(accepted)[mask])
+                    rejected.extend(np.array(accepted)[~mask])
+                    # This new rejected ones that come from accepted will be append in the end.
+                rejected.extend(new_reject)
+                accepted_count=len(accepted)
+                pbar.update(accepted_count-previous)
+                previous=accepted_count
         return accepted,rejected
                 
