@@ -79,16 +79,21 @@ class sampling:
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         """
-        def f_max_along_theta(a,b,theta,f_r):
-            
+        def f_max_along_theta(a_batch,b_batch,theta_batch):
+            """
+            If at some point, decide to put this function outside - then put density as arguemnt too.
+            It will generate the maximum of f_r across the whole batch. Returns only 
+            one maximum value among all inputs of the batch.
+            """
+
             return  
 
         
         possible_samples=[]
         maximums=[]
     
-        for i in range(self.k+round(alpha*self.k)):
-            
+        for i in range(round(self.k/batch_size)+round((self.k/batch_size)*alpha)):
+            # taking approximately 
 
             theta_batch=self.theta_generation(batch_size)
             R_batch=self.R(theta_batch)
@@ -99,14 +104,14 @@ class sampling:
             #
             # a,b,total_mass=self.importance_r(f_r, R_,theta,0.01,0.98)
             
-            local_f_max=f_max_along_theta(a_batch,b_batch,theta_batch,f_r)
+            local_f_max_batch=f_max_along_theta(a_batch,b_batch,theta_batch)
             sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
             density_vals=density(sampled_r_batch,theta_batch)
             u=np.random.uniform(0,1,batch_size)
             #this possible_samples might need to be changed for this vectorised form.
             possible_samples.append((theta_batch,u,sampled_r_batch,density_vals))
-            #VECTORISATION LEFT FROM HERE.
-            maximums.append(local_f_max)
+            #Append only the maximum of the whole batch.
+            maximums.append(local_f_max_batch)
         emperical_f_max=np.max(np.array(maximums))
         accepted=[]
         rejected=[]
@@ -120,6 +125,16 @@ class sampling:
         if i get less than k samples, then i will do normal rejection sampling 
         with emperical f_max for remaining samples, i will deploy the importance sampling in r, 
         hence it should not come to this case more often.
+
+        - NO. Sir's idea is to go for more sample same as previous loop, and if I find
+        the emperical_f_max higher than previous one, then we do retrospective prunning. 
+        - Will do this newer sample search for some number with respect to remaining numbner
+        of samples. something like --- 
+        (remaining_no_samples)+(remaining_no_samples)*alpha
+        
+        - Might work, since there is less chance of finding bigger_f_max. if i do then 
+        i will only have to see ONLY previous accepted samples (not rejected ones since they are 
+        even smaller.)
         '''
         
         while len(accepted)<self.k:
@@ -127,7 +142,7 @@ class sampling:
             R_=self.R(self.a,theta)
             sampled_r=np.random.uniform(0,R_)  #change to [a,b]
             sampled_f=np.random.uniform(0,emperical_f_max)
-            if sampled_f<=(sampled_r**(self.d-1))*f_r(sampled_r,theta):
+            if sampled_f<=(sampled_r**(self.d-1))*density(sampled_r,theta):
                 accepted.append((theta,sampled_r))
             else:
                 rejected.append((theta,sampled_r))

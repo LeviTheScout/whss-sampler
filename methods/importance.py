@@ -13,7 +13,7 @@ class importance_sampling:
         """
         Gives random uniformly generted direction around given direction (theta) at about given angle.
         """
-        #verify this!
+        #verify this! and need to vectorsie it.
         cartesian_direction=random_on_cap(theta,angle)
         return cartesian_direction,self.a/(2*np.max(np.abs(cartesian_direction)))
 
