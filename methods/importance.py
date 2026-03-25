@@ -48,7 +48,7 @@ class importance_sampling:
                     method='bounded'
                 )
                 return -res_fine.fun
-            f_max_theta=local_f_max(0,R_)
+            f_max_theta=local_f_max(R_,theta)
 
              
             def second_search(ini, final):
@@ -93,7 +93,7 @@ class importance_sampling:
             return a, b,f_max_theta, total_mass
 
 
-        results=Parallel(n_jobs=-1)(
+        results=Parallel(n_jobs=-1,prefer='threads')(
                 delayed(process_single)(R_batch[i],theta_batch[i])
                 for i in range(len(R_batch)) )       
 

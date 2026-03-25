@@ -33,7 +33,8 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
             log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
             
-            def f_r_gauss(r, theta_batch): # here r is distance from origin not directional vector.
+            def f_r_gauss(r, theta_batch): 
+                # here r is distance from origin not directional vector.
                 # r will be a (batch_size,) dim vector and theta_batch will be (batch_size,d) dim matrix
                 # hence each row of theta_batch will be one sample
                 r = np.atleast_1d(r)
@@ -93,9 +94,9 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             theta_star = np.zeros(self.d)
             theta_star[0] = 1.0
             f_max = f_r_gauss(r_mode, theta_star) * 1.05
-            return f_r_gauss, f_max
+            return f_r_gauss
 
     def get_samples(self):
         gauss_den=self.f_r_gaussian()
-        accepted,rejected=self.sampling_f_r(gauss_den)
+        accepted,rejected=self.sampling_f_r_new(gauss_den)
         return accepted,rejected

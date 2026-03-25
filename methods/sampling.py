@@ -84,28 +84,28 @@ class sampling:
         
         maximums=[]
         def batch_sampling(no_samples):    
-            for i in range(np.max(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
+            for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
                 # taking approximately 
-
-                possible_samples=[]
+                
+                possible_u,possible_density,possible_samples=[],[],[]
                 theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
-                
                 sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.random.uniform(0,1,batch_size)
                 #this possible_samples might need to be changed for this vectorised form.
-                
+                possible_u = np.array(possible_u)
+                possible_density = np.array(possible_density)
                 possible_samples.extend(zip(theta_batch,u_batch,sampled_r_batch,density_vals))
                 #Append only the maximum of the whole batch.
                 maximums.append(np.max(local_f_max_batch))
-
+            print(possible_samples)
             emperical_f_max=np.max(np.array(maximums))
             accepted=[]
             rejected=[]
-            possible_samples=np.array(possible_samples)
-            mask=emperical_f_max* possible_samples[:,1]<possible_samples[:,3]
+            mask = emperical_f_max * possible_u < possible_density
+            #mask=emperical_f_max* possible_samples[:,1]<possible_samples[:,3]
             accepted.append(possible_samples[mask])
             rejected.append(possible_samples[~mask])
             return accepted,rejected,emperical_f_max
