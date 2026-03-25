@@ -3,7 +3,7 @@ import numpy as np
 from scipy.integrate import quad
 from sambal import random_on_cap
 from joblib import Parallel,delayed
-#from scipy.optimize import brentq
+from scipy.optimize import direct, minimize_scalar
 
 
 class importance_sampling:
@@ -27,6 +27,29 @@ class importance_sampling:
             target = percentage_mass * total_mass
 
             a, b = 0, R_
+
+            def local_f_max(R_i, theta_i):
+                # DIRECT coarsely - just find the right basin
+                res_coarse = direct(
+                    lambda r: -g_r(r[0], theta_i),
+                    bounds=[(1e-10, R_i)],
+                    eps=1e-2,          # coarse - just find the peak region
+                    maxiter=200,       # limit evaluations hard
+                    locally_biased=True  # faster, accepts some risk
+                )
+                peak_loc = res_coarse.x[0]
+                
+                # Brent precisely within a tight window around DIRECT's answer
+                lo = max(1e-10, peak_loc - 0.05 * R_i)
+                hi = min(R_i, peak_loc + 0.05 * R_i)
+                res_fine = minimize_scalar(
+                    lambda r: -g_r(r, theta_i),
+                    bounds=(lo, hi),
+                    method='bounded'
+                )
+                return -res_fine.fun
+            f_max_theta=local_f_max(0,R_)
+
              
             def second_search(ini, final):
                 cuts = np.linspace(ini, final, 11)
@@ -53,6 +76,7 @@ class importance_sampling:
                 
                 #print(current_width)
                 return best_a, best_b
+
             while True:
                 mid = (a + b) / 2
                 vol_a = quad(g_r, a, mid, args=(theta,))[0]
@@ -64,16 +88,16 @@ class importance_sampling:
                     a = mid
                 else:
                     res_a, res_b = second_search(a, b)
-                    return res_a, res_b, total_mass
+                    return res_a, res_b, f_max_theta,total_mass
                     #break
-            return a, b, total_mass
+            return a, b,f_max_theta, total_mass
 
 
         results=Parallel(n_jobs=-1)(
                 delayed(process_single)(R_batch[i],theta_batch[i])
                 for i in range(len(R_batch)) )       
 
-        a_vals,b_vals,total_masses=zip(*results)
+        a_vals,b_vals,f_max_batch,total_mass_batch=zip(*results)
 
         # Looping approach
         # a_vals,b_vals,total_masses=[],[],[]
@@ -83,7 +107,7 @@ class importance_sampling:
         #     b_vals.append(b_temp)
         #     total_masses.append(mass_temp)
 
-        return np.array(a_vals),np.array(b_vals),np.array(total_masses)
+        return np.array(a_vals),np.array(b_vals),np.array(f_max_batch),np.array(total_mass_batch)
 
 
 

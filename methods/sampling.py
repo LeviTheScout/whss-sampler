@@ -79,14 +79,7 @@ class sampling:
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         """
-        def f_max_along_theta(a_batch,b_batch,theta_batch):
-            """
-            If at some point, decide to put this function outside - then put density as arguemnt too.
-            It will generate the maximum of f_r across the whole batch. Returns only 
-            one maximum value among all inputs of the batch.
-            """
-            
-            return  
+
 
         
         maximums=[]
@@ -97,9 +90,8 @@ class sampling:
                 possible_samples=[]
                 theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
-                a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 
-                local_f_max_batch=f_max_along_theta(a_batch,b_batch,theta_batch)
                 sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.random.uniform(0,1,batch_size)
@@ -107,7 +99,7 @@ class sampling:
                 
                 possible_samples.extend(zip(theta_batch,u_batch,sampled_r_batch,density_vals))
                 #Append only the maximum of the whole batch.
-                maximums.append(local_f_max_batch)
+                maximums.append(np.max(local_f_max_batch))
 
             emperical_f_max=np.max(np.array(maximums))
             accepted=[]
