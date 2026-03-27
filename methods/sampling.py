@@ -3,26 +3,7 @@ import numpy as np
 from tqdm import tqdm
 from dataclasses import dataclass
 
-@dataclass
-class Samples:
-    u: np.ndarray
-    theta: np.ndarray
-    r_batch: np.ndarray
-    density: np.ndarray
-    
-    def extend(self, other):
-        return Samples(
-            u=np.concatenate([self.u, other.u]),
-            theta=np.concatenate([self.theta, other.theta]),
-            r_batch=np.concatenate([self.r_batch, other.r_batch]),
-            density=np.concatenate([self.density, other.density]))
-    def filter(self, mask):
-        return Samples(
-            u=self.u[mask],
-            theta=self.theta[mask],
-            r_batch=self.r_batch[mask],
-            density=self.density[mask]
-        )
+
 class sampling:
 
     def sampling_f_r(self,f_r,batch_size=256):
@@ -94,7 +75,25 @@ class sampling:
         #
         #return accepted,rejected
 
+@dataclass
+class Samples:
+    u: np.ndarray
+    theta: np.ndarray
+    r_batch: np.ndarray
+    density: np.ndarray
     
+    def extend(self, other):
+        self.u = np.concatenate([self.u, other.u], axis=0)
+        self.theta = np.concatenate([self.theta, other.theta], axis=0)
+        self.r_batch = np.concatenate([self.r_batch, other.r_batch], axis=0)
+        self.density = np.concatenate([self.density, other.density], axis=0)
+    def filter(self, mask):
+        return Samples(
+            u=self.u[mask],
+            theta=self.theta[mask],
+            r_batch=self.r_batch[mask],
+            density=self.density[mask]
+        )   
 
 
     def sampling_f_r_new(self,density,batch_size=256,alpha=0.1):
@@ -105,41 +104,26 @@ class sampling:
 
         
         maximums=[]
-        def batch_sampling(no_samples):    
+        def batch_sampling(no_samples):   
+            possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
-                # taking approximately 
-                
-                possible_u,possible_density_vals,possible_sampled_r_batch,possible_theta=[],[],[],[]
                 theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.random.uniform(0,1,batch_size)
-                #this possible_samples might need to be changed for this vectorised form.
-                possible_u = np.array(u_batch)
-                possible_theta = np.array(theta_batch)
-                possible_sampled_r_batch=np.array(sampled_r_batch)
-                possible_density_vals=np.array(density_vals)
+                
+                batch_samples=Samples(u=u_batch,theta=theta_batch,r_batch=sampled_r_batch,density=density_vals)
 
-                possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals= [
-                        np.array(a) for  a in (u_batch,theta_batch,sampled_r_batch,density_vals)]
+                possible_samples.extend(batch_samples)
 
                 maximums.append(np.max(local_f_max_batch))
-            # print(possible_samples)
             emperical_f_max=np.max(np.array(maximums))
-            mask = emperical_f_max * possible_u < possible_density_vals
-
-            acc_u,acc_theta,acc_sampled_r_batch,acc_density_vals= [
-                        a[mask] for  a in (possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals)]
-           
-
-            rej_u,rej_theta,rej_sampled_r_batch,rej_density_vals= [
-                        a[~mask] for  a in (possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals)]
-            accepted=Samples(
-                    u=acc_u,theta=acc_theta,r_batch=acc_sampled_r_batch,density=acc_density_vals)
-            rejected=Samples(u=rej_u,theta=rej_theta,r_batch=rej_sampled_r_batch,density=rej_density_vals)
-            # print(len(accepted),len(rejected))
+            mask = emperical_f_max * possible_samples.u < possible_samples.density
+            accepted=possible_samples.filter(mask)
+            rejected=possible_samples.filter(~mask)
+ 
             return accepted,rejected,emperical_f_max 
 
 
@@ -168,7 +152,7 @@ class sampling:
             accepted,rejected,emperical_f_max=batch_sampling(self.k+round(self.k*alpha))
             accepted_count=len(accepted.u)
             while (self.k-accepted_count)>0:
-                remaining=self.k-len(accepted.u)
+                remaining=self.k-accepted_count
                 new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha))
                 if new_emp_max<=emperical_f_max:
                     accepted.extend(new_acc)
@@ -178,14 +162,13 @@ class sampling:
                     mask= emperical_f_max*np.array(u)<np.array(den)
                     
                     accepted=accepted.filter(mask)
-                    rejected=rejected.extend(accepted.filter(~mask))
+                    rejected.extend(accepted.filter(~mask))
                     accepted.extend(new_acc)
                     # This new rejected ones that come from accepted will be append in the end.
                 rejected.extend(new_reject)
                 accepted_count=len(accepted.u)
                 pbar.update(accepted_count-previous)
                 previous=accepted_count
-                print(accepted_count)
             ans_accepted=list(zip(accepted.theta,accepted.r_batch))
             ans_rejected=list(zip(rejected.theta,rejected.r_batch))
         return ans_accepted,ans_rejected

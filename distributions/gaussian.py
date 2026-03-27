@@ -96,7 +96,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             f_max = f_r_gauss(r_mode, theta_star) * 1.05
             return f_r_gauss
 
-    def get_samples(self):
+    def get_samples(self,batch_size=None):
         gauss_den=self.f_r_gaussian()
-        accepted,rejected=self.sampling_f_r_new(gauss_den)
+        accepted,rejected=self.sampling_f_r_new(gauss_den,batch_size)
         return accepted,rejected
