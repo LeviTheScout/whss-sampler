@@ -93,7 +93,7 @@ class importance_sampling:
             return a, b,f_max_theta, total_mass
 
 
-        results=Parallel(n_jobs=-1,prefer='threads')(
+        results=Parallel(n_jobs=-1)(
                 delayed(process_single)(R_batch[i],theta_batch[i])
                 for i in range(len(R_batch)) )       
 

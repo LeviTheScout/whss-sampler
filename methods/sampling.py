@@ -87,7 +87,7 @@ class sampling:
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
                 # taking approximately 
                 
-                possible_u,possible_density,possible_samples=[],[],[]
+                possible_u,possible_density_vals,possible_sampled_r_batch,possible_theta=[],[],[],[]
                 theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
@@ -95,20 +95,35 @@ class sampling:
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.random.uniform(0,1,batch_size)
                 #this possible_samples might need to be changed for this vectorised form.
-                possible_u = np.array(possible_u)
-                possible_density = np.array(possible_density)
-                possible_samples.extend(zip(theta_batch,u_batch,sampled_r_batch,density_vals))
+                possible_u = np.array(u_batch)
+                possible_theta = np.array(theta_batch)
+                possible_sampled_r_batch=np.array(sampled_r_batch)
+                possible_density_vals=np.array(density_vals)
+
+                possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals= [
+                        np.array(a) for  a in (u_batch,theta_batch,sampled_r_batch,density_vals)]
+                #possible_samples.extend(zip(theta_batch,u_batch,sampled_r_batch,density_vals))
                 #Append only the maximum of the whole batch.
                 maximums.append(np.max(local_f_max_batch))
-            print(possible_samples)
+            # print(possible_samples)
             emperical_f_max=np.max(np.array(maximums))
-            accepted=[]
-            rejected=[]
-            mask = emperical_f_max * possible_u < possible_density
+            mask = emperical_f_max * possible_u < possible_density_vals
             #mask=emperical_f_max* possible_samples[:,1]<possible_samples[:,3]
-            accepted.append(possible_samples[mask])
-            rejected.append(possible_samples[~mask])
-            return accepted,rejected,emperical_f_max
+            # possible_u=possible_u[mask]
+            # possible_theta=possible_theta[mask]
+            # possible_density_vals=possible_density_vals[mask]
+            # possible_sampled_r_batch=possible_sampled_r_batch[mask]
+            acc_u,acc_theta,acc_sampled_r_batch,acc_density_vals= [
+                        a[mask] for  a in (possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals)]
+           
+
+            rej_u,rej_theta,rej_sampled_r_batch,rej_density_vals= [
+                        a[~mask] for  a in (possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals)]
+            accepted=list(zip(acc_u,acc_theta,acc_sampled_r_batch,acc_density_vals))
+            rejected=list(zip(rej_u,rej_theta,rej_sampled_r_batch,rej_density_vals))
+            # print(len(accepted),len(rejected))
+            return accepted,rejected,emperical_f_max 
+
 
 
         '''
@@ -132,15 +147,19 @@ class sampling:
                 
         with tqdm(total=self.k,unit='accepted samples') as pbar:
             previous=0
-            accepted,rejected,emperical_f_max=batch_sampling(self.k)
+            accepted,rejected,emperical_f_max=batch_sampling(self.k+round(self.k*alpha))
             accepted_count=len(accepted)
             while (self.k-accepted_count)>0:
                 remaining=self.k-len(accepted)
-                new_acc,new_reject,new_emp_max=batch_sampling(remaining)
+                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha))
                 if new_emp_max<=emperical_f_max:
                     accepted.extend(new_acc)
                 else:
-                    mask= emperical_f_max*np.array(accepted)[:,1]<np.array(accepted)[:,3]
+                    # Some bug here.
+                    u=accepted[:][0]
+                    den=accepted[:][-1]
+                    print(u,den)
+                    mask= emperical_f_max*np.array(u)<np.array(den)
                 
                     accepted.extend(np.array(accepted)[mask])
                     rejected.extend(np.array(accepted)[~mask])
