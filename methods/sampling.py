@@ -1,6 +1,28 @@
+from typing import dataclass_transform
 import numpy as np
 from tqdm import tqdm
+from dataclasses import dataclass
 
+@dataclass
+class Samples:
+    u: np.ndarray
+    theta: np.ndarray
+    r_batch: np.ndarray
+    density: np.ndarray
+    
+    def extend(self, other):
+        return Samples(
+            u=np.concatenate([self.u, other.u]),
+            theta=np.concatenate([self.theta, other.theta]),
+            r_batch=np.concatenate([self.r_batch, other.r_batch]),
+            density=np.concatenate([self.density, other.density]))
+    def filter(self, mask):
+        return Samples(
+            u=self.u[mask],
+            theta=self.theta[mask],
+            r_batch=self.r_batch[mask],
+            density=self.density[mask]
+        )
 class sampling:
 
     def sampling_f_r(self,f_r,batch_size=256):
@@ -102,25 +124,21 @@ class sampling:
 
                 possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals= [
                         np.array(a) for  a in (u_batch,theta_batch,sampled_r_batch,density_vals)]
-                #possible_samples.extend(zip(theta_batch,u_batch,sampled_r_batch,density_vals))
-                #Append only the maximum of the whole batch.
+
                 maximums.append(np.max(local_f_max_batch))
             # print(possible_samples)
             emperical_f_max=np.max(np.array(maximums))
             mask = emperical_f_max * possible_u < possible_density_vals
-            #mask=emperical_f_max* possible_samples[:,1]<possible_samples[:,3]
-            # possible_u=possible_u[mask]
-            # possible_theta=possible_theta[mask]
-            # possible_density_vals=possible_density_vals[mask]
-            # possible_sampled_r_batch=possible_sampled_r_batch[mask]
+
             acc_u,acc_theta,acc_sampled_r_batch,acc_density_vals= [
                         a[mask] for  a in (possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals)]
            
 
             rej_u,rej_theta,rej_sampled_r_batch,rej_density_vals= [
                         a[~mask] for  a in (possible_u,possible_theta,possible_sampled_r_batch,possible_density_vals)]
-            accepted=list(zip(acc_u,acc_theta,acc_sampled_r_batch,acc_density_vals))
-            rejected=list(zip(rej_u,rej_theta,rej_sampled_r_batch,rej_density_vals))
+            accepted=Samples(
+                    u=acc_u,theta=acc_theta,r_batch=acc_sampled_r_batch,density=acc_density_vals)
+            rejected=Samples(u=rej_u,theta=rej_theta,r_batch=rej_sampled_r_batch,density=rej_density_vals)
             # print(len(accepted),len(rejected))
             return accepted,rejected,emperical_f_max 
 
@@ -148,25 +166,27 @@ class sampling:
         with tqdm(total=self.k,unit='accepted samples') as pbar:
             previous=0
             accepted,rejected,emperical_f_max=batch_sampling(self.k+round(self.k*alpha))
-            accepted_count=len(accepted)
+            accepted_count=len(accepted.u)
             while (self.k-accepted_count)>0:
-                remaining=self.k-len(accepted)
+                remaining=self.k-len(accepted.u)
                 new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha))
                 if new_emp_max<=emperical_f_max:
                     accepted.extend(new_acc)
                 else:
-                    # Some bug here.
-                    u=accepted[:][0]
-                    den=accepted[:][-1]
-                    print(u,den)
+                    u=accepted.u
+                    den=accepted.density
                     mask= emperical_f_max*np.array(u)<np.array(den)
-                
-                    accepted.extend(np.array(accepted)[mask])
-                    rejected.extend(np.array(accepted)[~mask])
+                    
+                    accepted=accepted.filter(mask)
+                    rejected=rejected.extend(accepted.filter(~mask))
+                    accepted.extend(new_acc)
                     # This new rejected ones that come from accepted will be append in the end.
                 rejected.extend(new_reject)
-                accepted_count=len(accepted)
+                accepted_count=len(accepted.u)
                 pbar.update(accepted_count-previous)
                 previous=accepted_count
-        return accepted,rejected
+                print(accepted_count)
+            ans_accepted=list(zip(accepted.theta,accepted.r_batch))
+            ans_rejected=list(zip(rejected.theta,rejected.r_batch))
+        return ans_accepted,ans_rejected
                 
