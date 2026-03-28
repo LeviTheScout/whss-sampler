@@ -105,7 +105,7 @@ class sampling:
             mask = emperical_f_max * possible_samples.u < possible_samples.density
             accepted=possible_samples.filter(mask)
             rejected=possible_samples.filter(~mask)
-            print(len(accepted.u),len(rejected.u)) 
+            # print(len(accepted.u),len(rejected.u)) 
             return accepted,rejected,emperical_f_max 
 
 
