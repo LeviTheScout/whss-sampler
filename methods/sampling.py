@@ -112,7 +112,7 @@ class sampling:
             # print(len(accepted.u),len(rejected.u)) 
             return accepted,rejected,emperical_f_max 
                 
-        with tqdm(total=self.k,unit='accepted samples') as pbar:
+        with tqdm(total=self.k,unit=' accepted samples ') as pbar:
             previous=0
             accepted,rejected,emperical_f_max=batch_sampling(self.k+round(self.k*alpha))
             accepted_count=len(accepted.u)

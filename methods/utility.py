@@ -27,19 +27,22 @@ class utilities:
         return R_vec
     
 
-    def close_thetas_batch(self,theta_batch,thresh_angle):
+    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle):
         """
         Returns a planner angle between two vectors.
         maybe can be made such that takes threshold angle as param. and 
         check that across whole batch and decides which to keep and which not to.
         
-        theta_batch: (k,d)
+        theta_batch: [(m1,[theta1]),(m2,[theta2]).....]
         """
-
+        away_angles=[]
         cosine_matrix=theta_batch @ theta_batch.T
         mask=cosine_matrix <= np.cos(thresh_angle)
-        
-        
+        indices=list(zip(*np.where(mask)))
+    
+            
+    
+
         # this is will give pair wise dot products.
         
 
