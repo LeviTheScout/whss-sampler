@@ -2,6 +2,8 @@ from typing import dataclass_transform
 import numpy as np
 from tqdm import tqdm
 from dataclasses import dataclass
+
+
 @dataclass
 class Samples:
     u: np.ndarray
@@ -39,9 +41,6 @@ class sampling:
         
         density=f_r[0]
         f_max=f_r[1]
-        # "f_max give along with f_r , also doing +0,01 in f_max, 
-        # might want to remove that later"
-        # THIS CAUSED ISSUE, DONT EVER ADD CONSTANT LIKE THIS.
         
         accepted_theta_list,accepted_r_list=[],[]
         rejected_theta_list,rejected_r_list=[],[]
@@ -83,9 +82,8 @@ class sampling:
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         """
 
-
-        
         maximums=[]
+        mass_list=[]
         def batch_sampling(no_samples):   
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
@@ -95,39 +93,24 @@ class sampling:
                 sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.random.uniform(0,1,batch_size)
-                
                 batch_samples=Samples(u=u_batch,theta=theta_batch,r_batch=sampled_r_batch,density=density_vals)
-
                 possible_samples.extend(batch_samples)
-
                 maximums.append(np.max(local_f_max_batch))
+                
+                #for importance in theta
+                mass_list.append(list(zip(total_mass_batch,theta_batch)))
+                #check if they are far enough, if not, discard smaller masses.
+                # this benifits me since i would like to keep list as small as possible.
+                # this also makes sure my saved directions are separate enough and large enoguh for 
+                #each batch. as batch gets added, it should check again with previos batch masses.
+                # basically we maintain far enough directions and then eventully just sort and select
+                # required number of directions based on mass.
             emperical_f_max=np.max(np.array(maximums))
             mask = emperical_f_max * possible_samples.u < possible_samples.density
             accepted=possible_samples.filter(mask)
             rejected=possible_samples.filter(~mask)
             # print(len(accepted.u),len(rejected.u)) 
             return accepted,rejected,emperical_f_max 
-
-
-
-        '''
-        if i get less than k samples, then i will do normal rejection sampling 
-        with emperical f_max for remaining samples, i will deploy the importance sampling in r, 
-        hence it should not come to this case more often.
-
-        - NO. Sir's idea is to go for more sample same as previous loop, and if I find
-        the emperical_f_max higher than previous one, then we do retrospective prunning. 
-        
-        - Will do this newer sample search for some number with respect to remaining numbner
-        of samples. something like --- 
-        (remaining_no_samples)+(remaining_no_samples)*alpha
-        
-        - Might work, since there is less chance of finding bigger_f_max. if i do then 
-        i will only have to see ONLY previous accepted samples (not rejected ones since they are 
-        even smaller.)
-
-        - this surely will increase rejection ratio?
-        '''
                 
         with tqdm(total=self.k,unit='accepted samples') as pbar:
             previous=0
@@ -136,6 +119,8 @@ class sampling:
             while (self.k-accepted_count)>0:
                 remaining=self.k-accepted_count
                 new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha))
+                # we put condtion here for importance theta, if i have acceptance ratio
+                # smaller than 'threshold' then will go for importance theta sampling.
                 if new_emp_max<=emperical_f_max:
                     accepted.extend(new_acc)
                 else:
@@ -155,3 +140,21 @@ class sampling:
             ans_rejected=list(zip(rejected.theta,rejected.r_batch))
         return ans_accepted,ans_rejected
                 
+        '''
+        if i get less than k samples, then i will do normal rejection sampling 
+        with emperical f_max for remaining samples, i will deploy the importance sampling in r, 
+        hence it should not come to this case more often.
+
+        - NO. Sir's idea is to go for more sample same as previous loop, and if I find
+        the emperical_f_max higher than previous one, then we do retrospective prunning. 
+        
+        - Will do this newer sample search for some number with respect to remaining numbner
+        of samples. something like --- 
+        (remaining_no_samples)+(remaining_no_samples)*alpha
+        
+        - Might work, since there is less chance of finding bigger_f_max. if i do then 
+        i will only have to see ONLY previous accepted samples (not rejected ones since they are 
+        even smaller.)
+
+        - this surely will increase rejection ratio?
+        '''
