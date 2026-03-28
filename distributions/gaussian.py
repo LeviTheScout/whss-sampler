@@ -23,8 +23,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             - Vectorised. 
             This function returns the d-dimensional multivariate Gaussian density which takes input 'r' a 
             length from origin and returns the gaussian at that function.
-            Also, it provides 'f_max' a mode value which is to be utilised for the purpose
-            of rejection sampling.
+
             
             Edit: Now I tried to use cholesky to tackle inverse and uses log and then exponential to make it more numerically stable (not necessary but good addition maybe).
             """
@@ -90,10 +89,13 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             #     theta_star[0] = 1
             #
             # f_max = f_r_gauss(x_mode, theta_star) 
-            r_mode = np.sqrt(max(0, self.d - 1))
-            theta_star = np.zeros(self.d)
-            theta_star[0] = 1.0
-            f_max = f_r_gauss(r_mode, theta_star) * 1.05
+            
+            
+            
+            # r_mode = np.sqrt(max(0, self.d - 1))
+            # theta_star = np.zeros(self.d)
+            # theta_star[0] = 1.0
+            # f_max = f_r_gauss(r_mode, theta_star) * 1.05
             return f_r_gauss
 
     def get_samples(self,batch_size=None):
