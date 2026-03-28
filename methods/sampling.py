@@ -76,24 +76,6 @@ class sampling:
 
         return accepted,rejceted
 
-        # while len(accepted)<self.k:
-        #
-        #     theta=self.theta_generation()
-        #     R_=self.R(theta)
-        #
-        #     a,b,total_mass=self.importance_r(density, R_,theta,0.01,0.98)
-        #     #print(a,b,R_)
-        #     sampled_r=np.random.uniform(a,b)
-        #     #sampled_r=np.random.uniform(np.sqrt(self.d)-(5/np.sqrt(2)),np.sqrt(self.d)+(5/np.sqrt(2)))
-        #     #sampled_r=np.random.uniform(0,R_)
-        #     sampled_f=np.random.uniform(0,f_max)
-        #
-        #     if sampled_f<=density(sampled_r,theta):
-        #         accepted.append((theta,sampled_r))
-        #     else:
-        #         rejected.append((theta,sampled_r))
-        #
-        #return accepted,rejected
 
 
     def sampling_f_r_new(self,density,batch_size=256,alpha=0.1):
@@ -123,7 +105,7 @@ class sampling:
             mask = emperical_f_max * possible_samples.u < possible_samples.density
             accepted=possible_samples.filter(mask)
             rejected=possible_samples.filter(~mask)
- 
+            print(len(accepted.u),len(rejected.u)) 
             return accepted,rejected,emperical_f_max 
 
 

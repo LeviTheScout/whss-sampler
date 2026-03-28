@@ -101,5 +101,6 @@ class nsmc_sampling_gaussian(nsmc_sampling):
         if batch_size is None:
             accepted,rejected=self.sampling_f_r_new(gauss_den)
         else:
+
             accepted,rejected=self.sampling_f_r_new(gauss_den,batch_size)
         return accepted,rejected
