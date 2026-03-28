@@ -2,6 +2,26 @@ from typing import dataclass_transform
 import numpy as np
 from tqdm import tqdm
 from dataclasses import dataclass
+@dataclass
+class Samples:
+    u: np.ndarray
+    theta: np.ndarray
+    r_batch: np.ndarray
+    density: np.ndarray
+    
+    def extend(self, other):
+        self.u = np.concatenate([self.u, other.u], axis=0)
+        self.theta = np.concatenate([self.theta, other.theta], axis=0)
+        self.r_batch = np.concatenate([self.r_batch, other.r_batch], axis=0)
+        self.density = np.concatenate([self.density, other.density], axis=0)
+    def filter(self, mask):
+        return Samples(
+            u=self.u[mask],
+            theta=self.theta[mask],
+            r_batch=self.r_batch[mask],
+            density=self.density[mask]
+        )   
+
 
 
 class sampling:
@@ -74,26 +94,6 @@ class sampling:
         #         rejected.append((theta,sampled_r))
         #
         #return accepted,rejected
-
-@dataclass
-class Samples:
-    u: np.ndarray
-    theta: np.ndarray
-    r_batch: np.ndarray
-    density: np.ndarray
-    
-    def extend(self, other):
-        self.u = np.concatenate([self.u, other.u], axis=0)
-        self.theta = np.concatenate([self.theta, other.theta], axis=0)
-        self.r_batch = np.concatenate([self.r_batch, other.r_batch], axis=0)
-        self.density = np.concatenate([self.density, other.density], axis=0)
-    def filter(self, mask):
-        return Samples(
-            u=self.u[mask],
-            theta=self.theta[mask],
-            r_batch=self.r_batch[mask],
-            density=self.density[mask]
-        )   
 
 
     def sampling_f_r_new(self,density,batch_size=256,alpha=0.1):

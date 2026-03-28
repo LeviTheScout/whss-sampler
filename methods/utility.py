@@ -41,16 +41,17 @@ class utilities:
         x_accepted, y_accepted = [], []
 
         for i in accepted:
-            a=i[:-1]
-            r=i[-1]
-            a = np.asarray(a)
-
-            x_accepted.append(r * a[0])
-
-            if len(a) > 1:
-                y_accepted.append(r * a[1])
-            else:
-                y_accepted.append(0)
+            a=np.array([accepted[i][0][:2] for i in range(len(accepted))])
+            r=np.array([accepted[i][-1] for i in range(len(accepted))]) 
+            
+            corrdinates=r[:,None] * a
+            x_accepted.append(corrdinates[:,0])
+            y_accepted.append(corrdinates[:,-1])
+            
+            # if len(a) > 1:
+            #     y_accepted.append(r * a[1])
+            # else:
+            #     y_accepted.append(0)
 
         # is this correct projection corrdinates?
         plt.figure(figsize=(8, 8))
