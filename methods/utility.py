@@ -27,6 +27,25 @@ class utilities:
         return R_vec
     
 
+    def close_thetas_batch(self,theta_batch,thresh_angle):
+        """
+        Returns a planner angle between two vectors.
+        maybe can be made such that takes threshold angle as param. and 
+        check that across whole batch and decides which to keep and which not to.
+        
+        theta_batch: (k,d)
+        """
+
+        cosine_matrix=theta_batch @ theta_batch.T
+        mask=cosine_matrix <= np.cos(thresh_angle)
+        
+        
+        # this is will give pair wise dot products.
+        
+
+        return 
+
+
     def x_y_view(self, accepted):
         """
         This function visualizes the 2D projection of samples generated in
