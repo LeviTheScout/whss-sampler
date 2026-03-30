@@ -1,0 +1,19 @@
+
+Steps:
+    1) For the first run of (k+buffer) samples, I will do normal adeptive rejection sampleing.
+       In this run, i will also get top `m` directions based on masses.
+
+    2) I will check if my accepteance ratio is good enough. 
+        - If it is, then i will proceed with normal adeptive way where i will now not save and 
+          compute top masses anymore and go ahead with adeptive rejection sampling.
+        - If not, then I will activate importance theta sampling, I will use top directions from first run
+          and try for equal number of reaming samples in each directions. (remaining + buffer)/m for each direction.
+          Meanwhile algorithm is still adeptive rejection sampling but just the how we sample directions has changes.
+          Importantly, I will not compute top mass directions again since we already did it once.
+
+Note: 1) We are comuting top mass directions for only first run, whether we go for normal sampling or theta importance sampling.
+      2) Anyhow, the adeptive approach of if found larger f_max then check and purge previously accepteed samples follows in both case.
+
+Q:Should directions be given more importance based on mass? 
+    - but this looks like unccessary bias, if a direction has significance we will see more acceptance 
+      naturally in those (remaining+buffer) samples.

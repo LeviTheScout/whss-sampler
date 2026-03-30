@@ -9,13 +9,13 @@ from scipy.optimize import direct, minimize_scalar
 class importance_sampling:
 
 
-    def importance_theta(self,theta,angle=np.pi/4):
+    def importance_theta(self,theta,angle_importance):
         """
         Gives random uniformly generted direction around given direction (theta) at about given angle.
         """
         #verify this! and need to vectorsie it.
-        cartesian_direction=random_on_cap(theta,angle)
-        return cartesian_direction,self.a/(2*np.max(np.abs(cartesian_direction)))
+        cartesian_direction=random_on_cap(theta,angle_importance)
+        return cartesian_direction
 
     def importance_r(self, g_r, R_batch, theta_batch, percentage_mass=0.99):
         '''
