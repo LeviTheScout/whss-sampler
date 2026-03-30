@@ -77,7 +77,7 @@ class sampling:
 
 
 
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,m=10):
+    def sampling_f_r_new(self,density,thresh_angle=np.pi/6,batch_size=256,alpha=0.1,m=10):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -85,7 +85,7 @@ class sampling:
         """
 
         maximums=[]
-        mass_list=[]
+        away_top_mass_directions=[]
         def batch_sampling(no_samples):   
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
@@ -100,13 +100,16 @@ class sampling:
                 maximums.append(np.max(local_f_max_batch))
                 
                 #for importance in theta
-                mass_list.append(list(zip(total_mass_batch,theta_batch)))
+                
+                top_m_theta_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,m)
                 #check if they are far enough, if not, discard smaller masses.
                 # this benifits me since i would like to keep list as small as possible.
                 # this also makes sure my saved directions are separate enough and large enoguh for 
                 #each batch. as batch gets added, it should check again with previos batch masses.
                 # basically we maintain far enough directions and then eventully just sort and select
                 # required number of directions based on mass.
+            
+            # will have to check again for away directions before adding to the global list.
             emperical_f_max=np.max(np.array(maximums))
             mask = emperical_f_max * possible_samples.u < possible_samples.density
             accepted=possible_samples.filter(mask)
