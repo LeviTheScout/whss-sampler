@@ -51,7 +51,7 @@ class utilities:
                 selected_directions_indices.append(sorted_mass_indices[j])
                 j+=1
             n=len(selected_directions_indices)
-        return theta_batch[selected_directions_indices]
+        return theta_batch[selected_directions_indices],mass_batch[selected_directions_indices]
 
 
     def x_y_view(self, accepted):

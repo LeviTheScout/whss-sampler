@@ -77,7 +77,7 @@ class sampling:
 
 
 
-    def sampling_f_r_new(self,density,thresh_angle=np.pi/6,batch_size=256,alpha=0.1,m=10):
+    def sampling_f_r_new(self,density,thresh_acceptance=0.1,thresh_angle=np.pi/6,batch_size=256,alpha=0.1,m=10):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -85,7 +85,7 @@ class sampling:
         """
 
         maximums=[]
-        away_top_mass_directions=[]
+        top_mass_theta,top_masses=[],[]
         def batch_sampling(no_samples):   
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
@@ -101,7 +101,9 @@ class sampling:
                 
                 #for importance in theta
                 
-                top_m_theta_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,m)
+                top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,m)
+                top_mass_theta.extend(top_m_theta_batch)
+                top_masses.extend(top_m_mass_batch)
                 #check if they are far enough, if not, discard smaller masses.
                 # this benifits me since i would like to keep list as small as possible.
                 # this also makes sure my saved directions are separate enough and large enoguh for 
@@ -109,23 +111,32 @@ class sampling:
                 # basically we maintain far enough directions and then eventully just sort and select
                 # required number of directions based on mass.
             
-            # will have to check again for away directions before adding to the global list.
             emperical_f_max=np.max(np.array(maximums))
             mask = emperical_f_max * possible_samples.u < possible_samples.density
             accepted=possible_samples.filter(mask)
             rejected=possible_samples.filter(~mask)
             # print(len(accepted.u),len(rejected.u)) 
-            return accepted,rejected,emperical_f_max 
+            
+            # will have to check again for away directions before adding to the global list.
+            top_m_theta,_=self.away_thetas_batch(top_mass_theta,top_masses,thresh_angle,m)
+            return accepted,rejected,emperical_f_max,top_m_theta
                 
         with tqdm(total=self.k,unit=' accepted samples ') as pbar:
             previous=0
             accepted,rejected,emperical_f_max=batch_sampling(self.k+round(self.k*alpha))
             accepted_count=len(accepted.u)
+            rejected_count=len(rejected.u)
+                 # we put condtion here for importance theta, if i have acceptance ratio
+                # smaller than 'threshold' then will go for importance theta sampling.
+            acceptance_ratio=accepted_count/(accepted_count+rejected_count)
+            # if acceptance_ratio < thresh_acceptance:
+            #     # do importance_Sampling
+            #
+            # else:
             while (self.k-accepted_count)>0:
                 remaining=self.k-accepted_count
-                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha))
-                # we put condtion here for importance theta, if i have acceptance ratio
-                # smaller than 'threshold' then will go for importance theta sampling.
+                new_acc,new_reject,new_emp_max, top_m_theta=batch_sampling(remaining+round(remaining*alpha))
+
                 if new_emp_max<=emperical_f_max:
                     accepted.extend(new_acc)
                 else:
