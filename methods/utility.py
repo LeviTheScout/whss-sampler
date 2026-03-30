@@ -27,26 +27,31 @@ class utilities:
         return R_vec
     
 
-    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle):
+    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,m):
         """
-        Returns a planner angle between two vectors.
+        Returns directions from theta_batch that are aprat enough and are top-m based on the mass.
         maybe can be made such that takes threshold angle as param. and 
         check that across whole batch and decides which to keep and which not to.
         
-        theta_batch: [(m1,[theta1]),(m2,[theta2]).....]
+        theta_batch: [[theta1],[theta2].....]
+        mass_batch: [m1,m2,.....]
+        m: required no. of directions
+        thresh_angle: decides the threshold of how big angle between two selected directions should be.
         """
-        away_angles=[]
-        cosine_matrix=theta_batch @ theta_batch.T
-        mask=cosine_matrix <= np.cos(thresh_angle)
-        indices=list(zip(*np.where(mask)))
-    
-            
-    
-
-        # this is will give pair wise dot products.
-        
-
-        return 
+        sorted_mass_indices=np.argsort(mass_batch)[::-1]
+        selected_directions_indices=[]
+        j,n=0,len(selected_directions_indices)
+        cos_thres=np.cos(thresh_angle)
+        while n<m and j<(len(sorted_mass_indices)):
+            for k in selected_directions_indices:
+                if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) < cos_thres:
+                    j+=1
+                    break
+            else:
+                selected_directions_indices.append(sorted_mass_indices[j])
+                j+=1
+            n=len(selected_directions_indices)
+        return theta_batch[selected_directions_indices]
 
 
     def x_y_view(self, accepted):

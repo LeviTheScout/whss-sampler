@@ -77,9 +77,11 @@ class sampling:
 
 
 
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1):
+    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,m=10):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
+        batch_size: no. of samples procced at a time.
+        m: no. of directions to open cone for importance sampling.
         """
 
         maximums=[]
