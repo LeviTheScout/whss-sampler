@@ -1,4 +1,4 @@
-
+'k' : Required number of samples, 'm' : Number of directions to do importance sampling in.
 Steps:
     1) For the first run of (k+buffer) samples, I will do normal adeptive rejection sampleing.
        In this run, i will also get top `m` directions based on masses.

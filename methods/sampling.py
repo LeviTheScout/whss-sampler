@@ -28,7 +28,7 @@ class Samples:
 
 class sampling:
 
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,thresh_angle=np.pi/6,angle_importance=np.pi/4,m=10):
+    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/6,m=10):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -76,6 +76,7 @@ class sampling:
                 
                 #for importance in theta
                 if first:
+                    thresh_angle=2*angle_importance
                     top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,m)
                     top_mass_theta.extend(top_m_theta_batch)
                     top_masses.extend(top_m_mass_batch)
@@ -100,10 +101,9 @@ class sampling:
             rejected_count=len(rejected.u)
             theta_sampling=False
             importance_directions=None
-            # we put condtion here for importance theta, if i have acceptance ratio
-            # smaller than 'threshold' then will go for importance theta sampling.
             acceptance_ratio=accepted_count/(accepted_count+rejected_count)
-            
+            # we put condtion here for importance theta, if i have acceptance ratio
+            # smaller than 'threshold' then will go for importance theta sampling. 
             if acceptance_ratio < thresh_acceptance:
                 # do importance theta sampling
                 theta_sampling=True
