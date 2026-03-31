@@ -28,7 +28,7 @@ class Samples:
 
 class sampling:
 
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/6,m=10):
+    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/14,m=10):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -85,7 +85,7 @@ class sampling:
                     top_masses.extend(top_m_mass_batch)
             
             emperical_f_max=np.max(np.array(maximums))
-            mask = emperical_f_max * possible_samples.u < possible_samples.density
+            mask = emperical_f_max*possible_samples.u<possible_samples.density
             accepted=possible_samples.filter(mask)
             rejected=possible_samples.filter(~mask)
             # print(len(accepted.u),len(rejected.u)) 

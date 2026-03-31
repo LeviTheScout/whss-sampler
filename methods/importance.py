@@ -14,10 +14,8 @@ class importance_sampling:
         Gives random uniformly generted direction around given direction (theta) at about given angle.
         """
         #verify this! and need to vectorsie it.
-        try:
-            cartesian_direction=random_on_cap(theta,angle_importance)
-        except:
-            print('error')
+        
+        cartesian_direction=random_on_cap(theta,angle_importance)
         return cartesian_direction
 
     def importance_r(self, g_r, R_batch, theta_batch, percentage_mass=0.99):
