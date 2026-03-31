@@ -44,13 +44,14 @@ class utilities:
         cos_thres=np.cos(thresh_angle)
         while n<m and j<(len(sorted_mass_indices)):
             for k in selected_directions_indices:
-                if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) < cos_thres:
+                if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) > cos_thres:
                     j+=1
                     break
             else:
                 selected_directions_indices.append(sorted_mass_indices[j])
                 j+=1
             n=len(selected_directions_indices)
+
         return theta_batch[selected_directions_indices],mass_batch[selected_directions_indices]
 
 

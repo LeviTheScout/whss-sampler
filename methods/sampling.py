@@ -56,20 +56,23 @@ class sampling:
                     # hence equal tries in each cone but might want rewright them.
                     # also not parallelised or vectorised it.
                     theta_batch=[]
-                    for i in range(m):
+                    for i in range(len(importance_directions)):
                         one_direction_samples=[]
-                        for j in range(round(no_samples/m)):
+
+                        for j in range(round(batch_size/m)):
+
                             one_direction_samples.append(self.importance_theta(importance_directions[i],angle_importance))
+
+                                #print(len(importance_directions),m,i)
                         theta_batch.extend(one_direction_samples)
                     theta_batch=np.array(theta_batch)
-                    
                 else:
                     theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
                 density_vals=density(sampled_r_batch,theta_batch)
-                u_batch=np.random.uniform(0,1,batch_size)
+                u_batch=np.random.uniform(0,1,len(theta_batch))
                 batch_samples=Samples(u=u_batch,theta=theta_batch,r_batch=sampled_r_batch,density=density_vals)
                 possible_samples.extend(batch_samples)
                 maximums.append(np.max(local_f_max_batch))
@@ -86,17 +89,20 @@ class sampling:
             accepted=possible_samples.filter(mask)
             rejected=possible_samples.filter(~mask)
             # print(len(accepted.u),len(rejected.u)) 
-            
+             
             # will have to check again for away directions before adding to the global list.
             if first:
-                top_m_theta,_=self.away_thetas_batch(top_mass_theta,top_masses,thresh_angle,m)
+                top_m_theta,_=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,m)
+                print(_)
                 return accepted,rejected,emperical_f_max,top_m_theta
             return accepted,rejected,emperical_f_max
 
 
         with tqdm(total=self.k,unit=' accepted samples ') as pbar:
             previous=0
+
             accepted,rejected,emperical_f_max, top_m_theta=batch_sampling(self.k+round(self.k*alpha),first=True)
+            
             accepted_count=len(accepted.u)
             rejected_count=len(rejected.u)
             theta_sampling=False
@@ -108,11 +114,10 @@ class sampling:
                 # do importance theta sampling
                 theta_sampling=True
                 importance_directions=top_m_theta
-
+                print('condtion violated')
             while (self.k-accepted_count)>0:
                 remaining=self.k-accepted_count
-                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling,importance_directions,first=False)
-
+                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,first=False)
                 if new_emp_max<=emperical_f_max:
                     accepted.extend(new_acc)
                 else:
