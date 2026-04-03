@@ -93,7 +93,7 @@ class sampling:
             # will have to check again for away directions before adding to the global list.
             if first:
                 top_m_theta,_=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,m)
-                print(_)
+                print(top_m_theta)
                 return accepted,rejected,emperical_f_max,top_m_theta
             return accepted,rejected,emperical_f_max
 
