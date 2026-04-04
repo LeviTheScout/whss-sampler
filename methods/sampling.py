@@ -56,7 +56,7 @@ class sampling:
                     # hence equal tries in each cone but might want rewright them.
                     # also not parallelised or vectorised it.
                     theta_batch=[]
-                    for i in range(len(importance_directions)):
+                    for i in range(len(importance_directions[:5])):
                         one_direction_samples=[]
 
                         for j in range(round(batch_size/m)):
@@ -94,6 +94,7 @@ class sampling:
             if first:
                 top_m_theta,_=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,m)
                 print(top_m_theta)
+                print(_)
                 return accepted,rejected,emperical_f_max,top_m_theta
             return accepted,rejected,emperical_f_max
 
@@ -119,14 +120,21 @@ class sampling:
                 remaining=self.k-accepted_count
                 new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,first=False)
                 if new_emp_max<=emperical_f_max:
+                    
+                    u=new_acc.u
+                    den=new_acc.density
+                    mask= emperical_f_max*np.array(u)<np.array(den)
+                    rejected.extend(new_acc.filter(~mask))
+                    new_acc=new_acc.filter(mask)
+                
                     accepted.extend(new_acc)
                 else:
                     u=accepted.u
                     den=accepted.density
-                    mask= emperical_f_max*np.array(u)<np.array(den)
+                    mask= new_emp_max*np.array(u)<np.array(den) 
                     
-                    accepted=accepted.filter(mask)
                     rejected.extend(accepted.filter(~mask))
+                    accepted=accepted.filter(mask)
                     accepted.extend(new_acc)
                     # This new rejected ones that come from accepted will be append in the end.
                 rejected.extend(new_reject)
