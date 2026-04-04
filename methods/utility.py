@@ -42,7 +42,10 @@ class utilities:
         selected_directions_indices=[]
         j,n=0,len(selected_directions_indices)
         cos_thres=np.cos(thresh_angle)
-        while n<m and j<(len(sorted_mass_indices)):
+        
+        # change this while condition to something else that would stop if there is significant mass loss.
+        while n<m and j<(len(sorted_mass_indices)): 
+            # either I have m directions or I stop if i dont have enough far aprat directions.
             for k in selected_directions_indices:
                 if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) > cos_thres:
                     j+=1

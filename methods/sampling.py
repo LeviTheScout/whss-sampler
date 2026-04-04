@@ -56,7 +56,7 @@ class sampling:
                     # hence equal tries in each cone but might want rewright them.
                     # also not parallelised or vectorised it.
                     theta_batch=[]
-                    for i in range(len(importance_directions[:5])):
+                    for i in range(len(importance_directions)):
                         one_direction_samples=[]
 
                         for j in range(round(batch_size/m)):
@@ -70,7 +70,7 @@ class sampling:
                     theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
-                sampled_r_batch=np.random.uniform(a_batch,b_batch) #use importance sampling in R , [a,b]
+                sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.random.uniform(0,1,len(theta_batch))
                 batch_samples=Samples(u=u_batch,theta=theta_batch,r_batch=sampled_r_batch,density=density_vals)
@@ -95,6 +95,8 @@ class sampling:
                 top_m_theta,_=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,m)
                 print(top_m_theta)
                 print(_)
+                # change away_thetas_batch function such that it returns the directions where we have significant mass.
+
                 return accepted,rejected,emperical_f_max,top_m_theta
             return accepted,rejected,emperical_f_max
 
@@ -115,7 +117,7 @@ class sampling:
                 # do importance theta sampling
                 theta_sampling=True
                 importance_directions=top_m_theta
-                print('condtion violated')
+                print('switching to importance theta.')
             while (self.k-accepted_count)>0:
                 remaining=self.k-accepted_count
                 new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,first=False)
