@@ -25,7 +25,7 @@ class Samples:
 
 class sampling:
 
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.02):
+    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -44,7 +44,7 @@ class sampling:
         """
         maximums=[]
         top_mass_theta,top_masses=[],[]
-        def batch_sampling(no_samples, first,theta_sampling=False, importance_directions=None):   
+        def batch_sampling(no_samples, first,theta_sampling=False, importance_directions=None, importance_mass=None):   
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
                 if theta_sampling:
@@ -53,11 +53,17 @@ class sampling:
                     # also not parallelised or vectorised it.
                     theta_batch=[]
                     m=len(importance_directions)
+
+                    #ratios of how much we will sample each direction.
+                    ratios=importance_mass/np.sum(importance_mass)
+
                     for i in range(len(importance_directions)):
                         one_direction_samples=[]
-                        for j in range(round(batch_size/m)): # taking uniform number of possible samples in all directions.
+                        for j in range(round(batch_size*ratios[i])):
+                        #for j in range(round(batch_size/m)): # taking uniform number of possible samples in all directions.
                             one_direction_samples.append(self.importance_theta(importance_directions[i],angle_importance))
                             #print(len(importance_directions),m,i)
+                # change away_thetas_batch function such that it returns the directionswhere we have significant mass.
                         theta_batch.extend(one_direction_samples)
                     theta_batch=np.array(theta_batch)
                 else:
@@ -86,19 +92,18 @@ class sampling:
              
             # will have to check again for away directions before adding to the global list.
             if first:
-                top_m_theta,_=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau)
+                top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau)
                 print(top_m_theta)
-                print(_)
-                # change away_thetas_batch function such that it returns the directions where we have significant mass.
+                print(correspondig_masses)
 
-                return accepted,rejected,emperical_f_max,top_m_theta
+                return accepted,rejected,emperical_f_max,top_m_theta,correspondig_masses
             return accepted,rejected,emperical_f_max
 
 
         with tqdm(total=self.k,unit=' accepted samples ') as pbar:
             previous=0
 
-            accepted,rejected,emperical_f_max, top_m_theta=batch_sampling(self.k+round(self.k*alpha),first=True)
+            accepted,rejected,emperical_f_max, top_m_theta, top_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
             
             accepted_count=len(accepted.u)
             rejected_count=len(rejected.u)
@@ -111,10 +116,11 @@ class sampling:
                 # do importance theta sampling
                 theta_sampling=True
                 importance_directions=top_m_theta
+                importance_mass=top_masses
                 print('switching to importance theta.')
             while (self.k-accepted_count)>0:
                 remaining=self.k-accepted_count
-                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,first=False)
+                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,importance_mass=importance_mass,first=False)
                 if new_emp_max<=emperical_f_max:
                     
                     u=new_acc.u
