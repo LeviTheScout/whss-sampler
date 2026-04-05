@@ -1,3 +1,4 @@
+from math import tau
 from typing import dataclass_transform
 import numpy as np
 from tqdm import tqdm
@@ -28,7 +29,7 @@ class Samples:
 
 class sampling:
 
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/14,m=10):
+    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.02):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -45,7 +46,6 @@ class sampling:
         even smaller.)
 
         """
-
         maximums=[]
         top_mass_theta,top_masses=[],[]
         def batch_sampling(no_samples, first,theta_sampling=False, importance_directions=None):   
@@ -56,14 +56,12 @@ class sampling:
                     # hence equal tries in each cone but might want rewright them.
                     # also not parallelised or vectorised it.
                     theta_batch=[]
+                    m=len(importance_directions)
                     for i in range(len(importance_directions)):
                         one_direction_samples=[]
-
                         for j in range(round(batch_size/m)):
-
                             one_direction_samples.append(self.importance_theta(importance_directions[i],angle_importance))
-
-                                #print(len(importance_directions),m,i)
+                            #print(len(importance_directions),m,i)
                         theta_batch.extend(one_direction_samples)
                     theta_batch=np.array(theta_batch)
                 else:
@@ -80,7 +78,7 @@ class sampling:
                 #for importance in theta
                 if first:
                     thresh_angle=2*angle_importance
-                    top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,m)
+                    top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau)
                     top_mass_theta.extend(top_m_theta_batch)
                     top_masses.extend(top_m_mass_batch)
             
@@ -92,7 +90,7 @@ class sampling:
              
             # will have to check again for away directions before adding to the global list.
             if first:
-                top_m_theta,_=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,m)
+                top_m_theta,_=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau)
                 print(top_m_theta)
                 print(_)
                 # change away_thetas_batch function such that it returns the directions where we have significant mass.

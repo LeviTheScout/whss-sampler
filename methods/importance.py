@@ -18,6 +18,37 @@ class importance_sampling:
         cartesian_direction=random_on_cap(theta,angle_importance)
         return cartesian_direction
 
+    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau):
+        """
+        Returns directions from theta_batch that are aprat enough and are top-m based on the mass.
+        maybe can be made such that takes threshold angle as param. and 
+        check that across whole batch and decides which to keep and which not to.
+        
+        theta_batch: [[theta1],[theta2].....]
+        mass_batch: [m1,m2,.....]
+        m: required no. of directions
+        thresh_angle: decides the threshold of how big angle between two selected directions should be.
+        """
+        sorted_mass_indices=np.argsort(mass_batch)[::-1]
+        selected_directions_indices=[]
+        j=0
+        cos_thres=np.cos(thresh_angle)
+        m1=mass_batch[sorted_mass_indices[0]] 
+        # change this while condition to something else that would stop if there is significant mass loss.
+        while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * m1:
+            # either I have m directions or I stop if i dont have enough far aprat directions.
+            
+            for k in selected_directions_indices:
+                if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) > cos_thres:
+                    j+=1
+                    break
+            else:
+                selected_directions_indices.append(sorted_mass_indices[j])
+                j+=1
+
+        return theta_batch[selected_directions_indices],mass_batch[selected_directions_indices]
+
+
     def importance_r(self, g_r, R_batch, theta_batch, percentage_mass=0.99):
         '''
         This finds interval [a,b] for given directions thetas such that this smaller region
