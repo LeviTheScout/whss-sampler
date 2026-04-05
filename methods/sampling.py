@@ -1,9 +1,6 @@
-from math import tau
-from typing import dataclass_transform
 import numpy as np
 from tqdm import tqdm
 from dataclasses import dataclass
-
 
 @dataclass
 class Samples:
@@ -24,7 +21,6 @@ class Samples:
             r_batch=self.r_batch[mask],
             density=self.density[mask]
         )   
-
 
 
 class sampling:
@@ -59,7 +55,7 @@ class sampling:
                     m=len(importance_directions)
                     for i in range(len(importance_directions)):
                         one_direction_samples=[]
-                        for j in range(round(batch_size/m)):
+                        for j in range(round(batch_size/m)): # taking uniform number of possible samples in all directions.
                             one_direction_samples.append(self.importance_theta(importance_directions[i],angle_importance))
                             #print(len(importance_directions),m,i)
                         theta_batch.extend(one_direction_samples)
