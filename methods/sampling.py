@@ -63,13 +63,13 @@ class sampling:
                         #for j in range(round(batch_size/m)): # taking uniform number of possible samples in all directions.
                             one_direction_samples.append(self.importance_theta(importance_directions[i],angle_importance))
                             #print(len(importance_directions),m,i)
-                # change away_thetas_batch function such that it returns the directionswhere we have significant mass.
                         theta_batch.extend(one_direction_samples)
                     theta_batch=np.array(theta_batch)
                 else:
                     theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                #use this total_mass_batch for the running mean and variance calculation.
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.random.uniform(0,1,len(theta_batch))

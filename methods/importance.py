@@ -13,7 +13,6 @@ class importance_sampling:
         """
         Gives random uniformly generted direction around given direction (theta) at about given angle.
         """
-        #verify this! and need to vectorsie it.
         
         cartesian_direction=random_on_cap(theta,angle_importance)
         return cartesian_direction
@@ -26,7 +25,7 @@ class importance_sampling:
         
         theta_batch: [[theta1],[theta2].....]
         mass_batch: [m1,m2,.....]
-        m: required no. of directions
+        tau: minimum fraction of m1 (maximum mass) each direction need to have.
         thresh_angle: decides the threshold of how big angle between two selected directions should be.
         """
         sorted_mass_indices=np.argsort(mass_batch)[::-1]
