@@ -28,12 +28,31 @@ class importance_sampling:
         tau: minimum fraction of m1 (maximum mass) each direction need to have.
         thresh_angle: decides the threshold of how big angle between two selected directions should be.
         """
+
+        cos_thres=np.cos(thresh_angle)
+        # if batch== True:
+        #     far_apart_directions=[]
+        #     will do matrix multiplication based check here since we have no involvment of mass anymore.
+        # cosine_matrix=theta_batch@theta_batch.T
+        # mask = cosine_matrix < cos_thres # ones signify that those angles are close.
+        # discard one of those where we have 1 based on whichever has less mass.
+        # mask=np.triu(mask)
+        # close_thetas=np.argwhere(mask)
+        # discard_idx=[] 
+        #for i in close_thetas:
+        #   if mass_batch[i[1]]<mass_batch[i[0]]:
+            #     discard_idx.append(i[1])
+            # else:
+            #     discard_idx.append(i[0])
+        # 
+        #else:
         sorted_mass_indices=np.argsort(mass_batch)[::-1]
         selected_directions_indices=[]
         j=0
-        cos_thres=np.cos(thresh_angle)
         m1=mass_batch[sorted_mass_indices[0]] 
-        # change this while condition to something else that would stop if there is significant mass loss.
+        
+        
+        # change m1---> m1/avg. problem - i will not have avg. 
         while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * m1:
             # either I have m directions or I stop if i dont have enough far aprat directions.
             

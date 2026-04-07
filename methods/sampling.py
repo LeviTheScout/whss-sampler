@@ -84,8 +84,6 @@ class sampling:
                     #update running_mean and variance here.
                     n,m=len(running_mean),len(total_mass_batch)
                     running_mean=(n*running_mean+np.sum(total_mass_batch))/(n+m)
-                    
-
 
                     thresh_angle=2*angle_importance
                     top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau)
@@ -100,6 +98,8 @@ class sampling:
              
             # will have to check again for away directions before adding to the global list.
             if first:
+                # change tau here. 
+                # tau = factor / mean, need to make sure it is fine for both batch wise and global.
                 top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau)
                 print(top_m_theta)
                 print(correspondig_masses)
@@ -112,7 +112,7 @@ class sampling:
             previous=0
 
             accepted,rejected,emperical_f_max, top_m_theta, top_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
-            
+            pbar.update(accepted_count) 
             accepted_count=len(accepted.u)
             rejected_count=len(rejected.u)
             theta_sampling=False
