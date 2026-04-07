@@ -43,8 +43,9 @@ class sampling:
 
         """
         maximums=[]
-        top_mass_theta,top_masses=[],[]
         def batch_sampling(no_samples, first,theta_sampling=False, importance_directions=None, importance_mass=None):   
+            top_mass_theta,top_masses=[],[] #shifted this from outside batch_sampling function to here.
+            running_mean,running_variance=0,0
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
                 if theta_sampling:
@@ -70,6 +71,7 @@ class sampling:
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 #use this total_mass_batch for the running mean and variance calculation.
+
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.random.uniform(0,1,len(theta_batch))
@@ -79,6 +81,12 @@ class sampling:
                 
                 #for importance in theta
                 if first:
+                    #update running_mean and variance here.
+                    n,m=len(running_mean),len(total_mass_batch)
+                    running_mean=(n*running_mean+np.sum(total_mass_batch))/(n+m)
+                    
+
+
                     thresh_angle=2*angle_importance
                     top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau)
                     top_mass_theta.extend(top_m_theta_batch)
