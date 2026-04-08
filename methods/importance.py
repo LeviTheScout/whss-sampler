@@ -17,7 +17,7 @@ class importance_sampling:
         cartesian_direction=random_on_cap(theta,angle_importance)
         return cartesian_direction
 
-    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau,batch):
+    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau,batch,global_mean=None):
         """
         Returns directions from theta_batch that are aprat enough and are top-m based on the mass.
         maybe can be made such that takes threshold angle as param. and 
@@ -55,10 +55,10 @@ class importance_sampling:
             selected_directions_indices=[]
             j=0
             m1=mass_batch[sorted_mass_indices[0]] 
-            # change m1---> m1/avg. problem - i will not have avg. 
-            while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * m1:
-                # either I have m directions or I stop if i dont have enough far aprat directions.
-                
+            # change m1---> m1/avg. problem
+            print(np.sort(mass_batch))
+            while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * (m1/global_mean):
+                # either I have enough directions or I stop if i dont have enough far aprat directions.
                 for k in selected_directions_indices:
                     if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) > cos_thres:
                         j+=1
@@ -67,6 +67,8 @@ class importance_sampling:
                     selected_directions_indices.append(sorted_mass_indices[j])
                     j+=1
 
+                print(theta_batch[sorted_mass_indices[j]])
+                print(mass_batch[sorted_mass_indices[j]],tau*(m1/global_mean)) 
             return theta_batch[selected_directions_indices],mass_batch[selected_directions_indices]
 
 

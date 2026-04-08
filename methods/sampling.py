@@ -25,7 +25,7 @@ class Samples:
 
 class sampling:
 
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
+    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.05):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -45,7 +45,7 @@ class sampling:
         maximums=[]
         def batch_sampling(no_samples, first,theta_sampling=False, importance_directions=None, importance_mass=None):   
             top_mass_theta,top_masses=[],[] #shifted this from outside batch_sampling function to here.
-            running_mean,running_variance=0,0
+            running_mean,running_variance,n=0,0,0
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
                 if theta_sampling:
@@ -82,13 +82,14 @@ class sampling:
                 #for importance in theta
                 if first:
                     #update running_mean and variance here.
-                    n,m=len(running_mean),len(total_mass_batch)
+                    m=len(total_mass_batch)
                     running_mean=(n*running_mean+np.sum(total_mass_batch))/(n+m)
-
+                    n+=m
                     thresh_angle=2*angle_importance
                     top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau,batch=True)
                     top_mass_theta.extend(top_m_theta_batch)
                     top_masses.extend(top_m_mass_batch)
+                    # print(top_m_theta_batch,top_m_mass_batch)
             
             emperical_f_max=np.max(np.array(maximums))
             mask = emperical_f_max*possible_samples.u<possible_samples.density
@@ -100,7 +101,7 @@ class sampling:
             if first:
                 # change tau here. 
                 # tau = factor / mean, need to make sure it is fine for both batch wise and global.
-                top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,batch=False)
+                top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,batch=False)
                 print(top_m_theta)
                 print(correspondig_masses)
 
@@ -112,8 +113,9 @@ class sampling:
             previous=0
 
             accepted,rejected,emperical_f_max, top_m_theta, top_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
-            pbar.update(accepted_count) 
+             
             accepted_count=len(accepted.u)
+            pbar.update(accepted_count)
             rejected_count=len(rejected.u)
             theta_sampling=False
             importance_directions=None
@@ -130,7 +132,6 @@ class sampling:
                 remaining=self.k-accepted_count
                 new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,importance_mass=importance_mass,first=False)
                 if new_emp_max<=emperical_f_max:
-                    
                     u=new_acc.u
                     den=new_acc.density
                     mask= emperical_f_max*np.array(u)<np.array(den)
