@@ -86,7 +86,7 @@ class sampling:
                     running_mean=(n*running_mean+np.sum(total_mass_batch))/(n+m)
 
                     thresh_angle=2*angle_importance
-                    top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau)
+                    top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau,batch=True)
                     top_mass_theta.extend(top_m_theta_batch)
                     top_masses.extend(top_m_mass_batch)
             
@@ -100,7 +100,7 @@ class sampling:
             if first:
                 # change tau here. 
                 # tau = factor / mean, need to make sure it is fine for both batch wise and global.
-                top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau)
+                top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,batch=False)
                 print(top_m_theta)
                 print(correspondig_masses)
 

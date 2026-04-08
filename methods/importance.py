@@ -17,7 +17,7 @@ class importance_sampling:
         cartesian_direction=random_on_cap(theta,angle_importance)
         return cartesian_direction
 
-    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau):
+    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau,batch):
         """
         Returns directions from theta_batch that are aprat enough and are top-m based on the mass.
         maybe can be made such that takes threshold angle as param. and 
@@ -29,42 +29,45 @@ class importance_sampling:
         thresh_angle: decides the threshold of how big angle between two selected directions should be.
         """
 
-        cos_thres=np.cos(thresh_angle)
-        # if batch== True:
-        #     far_apart_directions=[]
-        #     will do matrix multiplication based check here since we have no involvment of mass anymore.
-        # cosine_matrix=theta_batch@theta_batch.T
-        # mask = cosine_matrix < cos_thres # ones signify that those angles are close.
-        # discard one of those where we have 1 based on whichever has less mass.
-        # mask=np.triu(mask)
-        # close_thetas=np.argwhere(mask)
-        # discard_idx=[] 
-        #for i in close_thetas:
-        #   if mass_batch[i[1]]<mass_batch[i[0]]:
-            #     discard_idx.append(i[1])
-            # else:
-            #     discard_idx.append(i[0])
-        # 
-        #else:
         sorted_mass_indices=np.argsort(mass_batch)[::-1]
-        selected_directions_indices=[]
-        j=0
-        m1=mass_batch[sorted_mass_indices[0]] 
-        
-        
-        # change m1---> m1/avg. problem - i will not have avg. 
-        while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * m1:
-            # either I have m directions or I stop if i dont have enough far aprat directions.
-            
-            for k in selected_directions_indices:
-                if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) > cos_thres:
-                    j+=1
-                    break
-            else:
-                selected_directions_indices.append(sorted_mass_indices[j])
-                j+=1
+        cos_thres=np.cos(thresh_angle)
+        if batch:
+            # will do matrix multiplication based check here since we have no involvment of mass anymore.
+            cosine_matrix=theta_batch@theta_batch.T
+            mask = cosine_matrix > cos_thres # ones signify that those angles are close.
+            #discard one of those where we have 1 based on whichever has less mass.
+            np.fill_diagonal(mask,False)
+            discard_idx=set() 
+            for i in sorted_mass_indices:
+                if i in discard_idx:
+                    continue
 
-        return theta_batch[selected_directions_indices],mass_batch[selected_directions_indices]
+                close_to_i=np.where(mask[i])[0]
+                discard_idx.update(close_to_i)
+                #because i is heaviest surviving theta,all the neighbours must be lighter.
+
+            discard_idx=list(discard_idx)
+            far_apart_directions=np.delete(theta_batch,discard_idx,axis=0)
+            far_apart_masses=np.delete(mass_batch,discard_idx,axis=0)
+            return far_apart_directions,far_apart_masses
+        else:
+            sorted_mass_indices=np.argsort(mass_batch)[::-1]
+            selected_directions_indices=[]
+            j=0
+            m1=mass_batch[sorted_mass_indices[0]] 
+            # change m1---> m1/avg. problem - i will not have avg. 
+            while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * m1:
+                # either I have m directions or I stop if i dont have enough far aprat directions.
+                
+                for k in selected_directions_indices:
+                    if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) > cos_thres:
+                        j+=1
+                        break
+                else:
+                    selected_directions_indices.append(sorted_mass_indices[j])
+                    j+=1
+
+            return theta_batch[selected_directions_indices],mass_batch[selected_directions_indices]
 
 
     def importance_r(self, g_r, R_batch, theta_batch, percentage_mass=0.99):
