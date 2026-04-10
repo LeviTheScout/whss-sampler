@@ -56,7 +56,7 @@ class importance_sampling:
             j=0
             m1=mass_batch[sorted_mass_indices[0]] 
             # change m1---> m1/avg. problem
-            print(np.sort(mass_batch))
+            # print(np.sort(mass_batch))
             while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * (m1/global_mean):
                 # either I have enough directions or I stop if i dont have enough far aprat directions.
                 for k in selected_directions_indices:
@@ -67,8 +67,10 @@ class importance_sampling:
                     selected_directions_indices.append(sorted_mass_indices[j])
                     j+=1
 
-                print(theta_batch[sorted_mass_indices[j]])
-                print(mass_batch[sorted_mass_indices[j]],tau*(m1/global_mean)) 
+                #print(mass_batch[sorted_mass_indices[j]],tau*(m1/global_mean)) 
+                # print(theta_batch[sorted_mass_indices[j]])
+            print(len(selected_directions_indices))
+            print(theta_batch[selected_directions_indices])
             return theta_batch[selected_directions_indices],mass_batch[selected_directions_indices]
 
 

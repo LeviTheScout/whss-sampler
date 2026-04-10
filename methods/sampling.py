@@ -54,14 +54,14 @@ class sampling:
                     # also not parallelised or vectorised it.
                     theta_batch=[]
                     m=len(importance_directions)
-
+                    print(list(zip(importance_directions,importance_mass))) 
                     #ratios of how much we will sample each direction.
                     ratios=importance_mass/np.sum(importance_mass)
 
                     for i in range(len(importance_directions)):
                         one_direction_samples=[]
-                        for j in range(round(batch_size*ratios[i])):
-                        #for j in range(round(batch_size/m)): # taking uniform number of possible samples in all directions.
+                        #for j in range(round(batch_size*ratios[i])):
+                        for j in range(round(batch_size/m)): # taking uniform number of possible samples in all directions.
                             one_direction_samples.append(self.importance_theta(importance_directions[i],angle_importance))
                             #print(len(importance_directions),m,i)
                         theta_batch.extend(one_direction_samples)
@@ -102,8 +102,8 @@ class sampling:
                 # change tau here. 
                 # tau = factor / mean, need to make sure it is fine for both batch wise and global.
                 top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,batch=False)
-                print(top_m_theta)
-                print(correspondig_masses)
+                # print(top_m_theta)
+                # print(correspondig_masses)
 
                 return accepted,rejected,emperical_f_max,top_m_theta,correspondig_masses
             return accepted,rejected,emperical_f_max
