@@ -26,8 +26,16 @@ class utilities:
         R_vec=self.a/(2*inf_norm)
         return R_vec
     
+    def projection_testing(self,accepted,g_r):
+        """
+        - Generte random direction.
+        - Take projection of samples along that direction.
+        - Projection of density (dont know how to do this).
+        - measure distance (Primarily KS, but could use others too).
+        """
 
-
+        return
+        
     def x_y_view(self, accepted):
         """
         This function visualizes the 2D projection of samples generated in
