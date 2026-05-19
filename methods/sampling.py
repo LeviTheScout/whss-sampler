@@ -119,6 +119,7 @@ class sampling:
             rejected_count=len(rejected.u)
             theta_sampling=False
             importance_directions=None
+            importance_mass=None
             acceptance_ratio=accepted_count/(accepted_count+rejected_count)
             # we put condtion here for importance theta, if i have acceptance ratio
             # smaller than 'threshold' then will go for importance theta sampling. 
