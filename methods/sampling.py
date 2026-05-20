@@ -40,7 +40,8 @@ class sampling:
         - Might work, since there is less chance of finding bigger_f_max. if i do then 
         i will only have to see ONLY previous accepted samples (not rejected ones since they are 
         even smaller.)
-
+        
+        density: f(r) * r^(d-1)
         """
         maximums=[]
         def batch_sampling(no_samples, first,theta_sampling=False, importance_directions=None, importance_mass=None):   
@@ -74,7 +75,7 @@ class sampling:
 
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
-                u_batch=np.random.uniform(0,1,len(theta_batch))
+                u_batch=np.log(np.random.uniform(0,1,len(theta_batch)))
                 batch_samples=Samples(u=u_batch,theta=theta_batch,r_batch=sampled_r_batch,density=density_vals)
                 possible_samples.extend(batch_samples)
                 maximums.append(np.max(local_f_max_batch))
@@ -92,7 +93,7 @@ class sampling:
                     # print(top_m_theta_batch,top_m_mass_batch)
             
             emperical_f_max=np.max(np.array(maximums))
-            mask = emperical_f_max*possible_samples.u<possible_samples.density
+            mask = np.log(emperical_f_max)+possible_samples.u<possible_samples.density
             accepted=possible_samples.filter(mask)
             rejected=possible_samples.filter(~mask)
             # print(len(accepted.u),len(rejected.u)) 

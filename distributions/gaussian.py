@@ -54,7 +54,8 @@ class nsmc_sampling_gaussian(nsmc_sampling):
                 
                 log_volume = (self.d - 1) * np.log(r)
 
-                result=np.exp(log_volume + log_density)
+                # result=np.exp(log_volume + log_density)
+                result=log_volume+log_density
                 if result.shape[0]==1:
                     return result[0]
                 return result            
