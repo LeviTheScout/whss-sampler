@@ -17,12 +17,11 @@ class importance_sampling:
         cartesian_direction=random_on_cap(theta,angle_importance)
         return cartesian_direction
 
-    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau,batch,global_mean=None):
+    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau,batch,orthants_batch=None,global_mean=None):
         """
         Returns directions from theta_batch that are aprat enough and are top-m based on the mass.
         maybe can be made such that takes threshold angle as param. and 
         check that across whole batch and decides which to keep and which not to.
-        
         theta_batch: [[theta1],[theta2].....]
         mass_batch: [m1,m2,.....]
         tau: minimum fraction of m1 (maximum mass) each direction need to have.
@@ -30,48 +29,33 @@ class importance_sampling:
         """
 
         sorted_mass_indices=np.argsort(mass_batch)[::-1]
-        cos_thres=np.cos(thresh_angle)
         if batch:
-            # will do matrix multiplication based check here since we have no involvment of mass anymore.
-            cosine_matrix=theta_batch@theta_batch.T
-            mask = cosine_matrix > cos_thres # ones signify that those angles are close.
-            #discard one of those where we have 1 based on whichever has less mass.
-            np.fill_diagonal(mask,False)
-            discard_idx=set() 
-            for i in sorted_mass_indices:
-                if i in discard_idx:
-                    continue
-
-                close_to_i=np.where(mask[i])[0]
-                discard_idx.update(close_to_i)
-                #because i is heaviest surviving theta,all the neighbours must be lighter.
-
-            discard_idx=list(discard_idx)
-            far_apart_directions=np.delete(theta_batch,discard_idx,axis=0)
-            far_apart_masses=np.delete(mass_batch,discard_idx,axis=0)
-            return far_apart_directions,far_apart_masses
+            orthant_ids=self.orthant_ids(theta_batch)
+            sorted_orthant_ids=orthant_ids[sorted_mass_indices]
+            _, unique_sorted_orthant_indices=np.unique(sorted_orthant_ids, return_index=True,axis=0)
+            sorted_orthants=orthant_ids[unique_sorted_orthant_indices]
+            masses_new=mass_batch[unique_sorted_orthant_indices]
+            thetas_new=theta_batch[unique_sorted_orthant_indices]
+            #makes sure that higher mass is kept when there is clash of two directions in same orthant.
+            return sorted_orthants,masses_new,thetas_new
         else:
-            sorted_mass_indices=np.argsort(mass_batch)[::-1]
-            selected_directions_indices=[]
+            selected_orthant_indices=[]
             j=0
             m1=mass_batch[sorted_mass_indices[0]] 
             # change m1---> m1/avg. problem
             # print(np.sort(mass_batch))
             while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * (m1/global_mean):
                 # either I have enough directions or I stop if i dont have enough far aprat directions.
-                for k in selected_directions_indices:
-                    if (theta_batch[k] @ theta_batch[sorted_mass_indices[j]]) > cos_thres:
+                for k in selected_orthant_indices:
+                    if np.array_equal(orthants_batch[k],orthants_batch[sorted_mass_indices[j]]):
                         j+=1
                         break
                 else:
-                    selected_directions_indices.append(sorted_mass_indices[j])
+                    selected_orthant_indices.append(sorted_mass_indices[j])
                     j+=1
 
-                #print(mass_batch[sorted_mass_indices[j]],tau*(m1/global_mean)) 
-                # print(theta_batch[sorted_mass_indices[j]])
-            print(len(selected_directions_indices))
-            print(theta_batch[selected_directions_indices])
-            return theta_batch[selected_directions_indices],mass_batch[selected_directions_indices]
+            
+            return orthants_batch[selected_orthant_indices],theta_batch[selected_orthant_indices],mass_batch[selected_orthant_indices]
 
 
     def importance_r(self, g_r, R_batch, theta_batch, percentage_mass=0.99):

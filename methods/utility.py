@@ -21,11 +21,22 @@ class utilities:
         """
         Returns the maximum length 'R' along that direcions of the 
         thetas given in the batch for CUBE of side length a.
+        thetas: it is in Cartesian coordinate system, not spherical. 
         """
         inf_norm = np.max(np.abs(thetas),axis=1)
         R_vec=self.a/(2*inf_norm)
         return R_vec
-    
+
+
+    def get_orthant(self,thetas):
+        mask= thetas>=0
+        #axis=1 : for whole batch of theta, it makes sure we look at them horizontally along columns. 
+        # packbits: for each 8 elements in array---0s,1s a 8bit number, it assigns a decimal number based on that 8 bit array.
+        orthant_ids=np.packbits(mask,axis=1)
+
+        #check orthants of two points using np.array_equal(id_a,id_b)
+        return orthant_ids
+        
     def projection_testing(self,accepted,g_r):
         """
         - Generte random direction.

@@ -45,7 +45,7 @@ class sampling:
         """
         maximums=[]
         def batch_sampling(no_samples, first,theta_sampling=False, importance_directions=None, importance_mass=None):   
-            top_mass_theta,top_masses=[],[] #shifted this from outside batch_sampling function to here.
+            top_mass_theta,top_orthants,top_masses=[],[],[] #shifted this from outside batch_sampling function to here.
             running_mean,running_variance,n=0,0,0
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
@@ -87,9 +87,10 @@ class sampling:
                     running_mean=(n*running_mean+np.sum(total_mass_batch))/(n+m)
                     n+=m
                     thresh_angle=2*angle_importance
-                    top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau,batch=True)
+                    top_m_orthants_batch,top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau,batch=True)
                     top_mass_theta.extend(top_m_theta_batch)
                     top_masses.extend(top_m_mass_batch)
+                    top_orthants.extend(top_m_orthants_batch)
                     # print(top_m_theta_batch,top_m_mass_batch)
             
             emperical_f_max=np.max(np.array(maximums))
@@ -102,11 +103,11 @@ class sampling:
             if first:
                 # change tau here. 
                 # tau = factor / mean, need to make sure it is fine for both batch wise and global.
-                top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,batch=False)
+                top_m_orthants,top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,orthants_batch=top_orthants,batch=False)
                 # print(top_m_theta)
                 # print(correspondig_masses)
 
-                return accepted,rejected,emperical_f_max,top_m_theta,correspondig_masses
+                return accepted,rejected,emperical_f_max,top_m_orthants,top_m_theta,correspondig_masses
             return accepted,rejected,emperical_f_max
 
 
