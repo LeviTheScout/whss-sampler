@@ -9,13 +9,19 @@ from scipy.optimize import direct, minimize_scalar
 class importance_sampling:
 
 
-    def importance_theta(self,theta,angle_importance):
+    def importance_orthant(self,orthant_id,batch_size):
         """
-        Gives random uniformly generted direction around given direction (theta) at about given angle.
+        generate random uniform directions, change signs to match the signs of the orthants exactly. 
         """
-        
-        cartesian_direction=random_on_cap(theta,angle_importance)
-        return cartesian_direction
+        # 1. unpack original orthant id in 1s and 0s
+        original_orthant_id=np.unpackbits(orthant_id,axis=1)
+        # 2. generate batch of random directions.
+        theta_batch=self.theta_generation(batch_size)
+        # 3. change signs in batch so that it matches that of given orthant.
+        target_bits=original_orthant_id[:,:self.d] 
+        target_signs=(target_bits*2)-1 #mapping 0,1 to -1,1
+        orthant_thetas=np.abs(theta_batch)*target_signs
+        return orthant_thetas 
 
     def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau,batch,orthants_batch=None,global_mean=None):
         """

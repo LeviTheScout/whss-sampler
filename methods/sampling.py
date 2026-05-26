@@ -44,7 +44,7 @@ class sampling:
         density: f(r) * r^(d-1)
         """
         maximums=[]
-        def batch_sampling(no_samples, first,theta_sampling=False, importance_directions=None, importance_mass=None):   
+        def batch_sampling(no_samples, first,theta_sampling=False,importance_orthants=None importance_directions=None, importance_mass=None):   
             top_mass_theta,top_orthants,top_masses=[],[],[] #shifted this from outside batch_sampling function to here.
             running_mean,running_variance,n=0,0,0
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
@@ -52,20 +52,17 @@ class sampling:
                 if theta_sampling:
                     # how many to sample wrt each theta? -- currently doing no_samples/m 
                     # hence equal tries in each cone but might want rewright them.
-                    # also not parallelised or vectorised it.
                     theta_batch=[]
-                    m=len(importance_directions)
-                    print(list(zip(importance_directions,importance_mass))) 
+                    m=len(importance_orthants)
+                    # print(list(zip(importance_directions,importance_mass))) 
                     #ratios of how much we will sample each direction.
                     ratios=importance_mass/np.sum(importance_mass)
 
-                    for i in range(len(importance_directions)):
-                        one_direction_samples=[]
-                        #for j in range(round(batch_size*ratios[i])):
-                        for j in range(round(batch_size/m)): # taking uniform number of possible samples in all directions.
-                            one_direction_samples.append(self.importance_theta(importance_directions[i],angle_importance))
-                            #print(len(importance_directions),m,i)
-                        theta_batch.extend(one_direction_samples)
+                    for i in range(len(importance_orthants)):
+                        one_orthant_samples=[]
+                        one_orthant_samples=self.importance_orthants(importance_orthants[i],batch_size/m)
+                    # taking uniform number of possible samples in all directions.
+                        theta_batch.extend(one_orthant_samples)
                     theta_batch=np.array(theta_batch)
                 else:
                     theta_batch=self.theta_generation(batch_size)
@@ -114,7 +111,7 @@ class sampling:
         with tqdm(total=self.k,unit=' accepted samples ') as pbar:
             previous=0
 
-            accepted,rejected,emperical_f_max, top_m_theta, top_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
+            accepted,rejected,emperical_f_max, top_m_orthants,top_m_theta, top_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
              
             accepted_count=len(accepted.u)
             pbar.update(accepted_count)
@@ -130,10 +127,12 @@ class sampling:
                 theta_sampling=True
                 importance_directions=top_m_theta
                 importance_mass=top_masses
+                importance_orthants=top_m_orthants
                 print('switching to importance theta.')
             while (self.k-accepted_count)>0:
                 remaining=self.k-accepted_count
-                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,importance_mass=importance_mass,first=False)
+                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,
+                                                              importance_orthants=importance_orthants,importance_mass=importance_mass,first=False)
                 if new_emp_max<=emperical_f_max:
                     u=new_acc.u
                     den=new_acc.density
