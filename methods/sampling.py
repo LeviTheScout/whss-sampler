@@ -44,7 +44,7 @@ class sampling:
         density: f(r) * r^(d-1)
         """
         maximums=[]
-        def batch_sampling(no_samples, first,theta_sampling=False,importance_orthants=None importance_directions=None, importance_mass=None):   
+        def batch_sampling(no_samples, first,theta_sampling=False,importance_orthants=None, importance_directions=None, importance_mass=None):   
             top_mass_theta,top_orthants,top_masses=[],[],[] #shifted this from outside batch_sampling function to here.
             running_mean,running_variance,n=0,0,0
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),density=np.array([]))
@@ -119,6 +119,7 @@ class sampling:
             theta_sampling=False
             importance_directions=None
             importance_mass=None
+            importance_orthants=None
             acceptance_ratio=accepted_count/(accepted_count+rejected_count)
             # we put condtion here for importance theta, if i have acceptance ratio
             # smaller than 'threshold' then will go for importance theta sampling. 
