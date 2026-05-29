@@ -17,6 +17,22 @@ class utilities:
         return samples/r[:,None]
     
 
+    def orthant_theta_generator(self,orthant_id,batch_size):
+        """
+        generate random uniform directions, change signs to match the signs of the orthants exactly. 
+        """
+        batch_size=np.ceil(batch_size).astype(int)
+        # 1. unpack original orthant id in 1s and 0s
+        original_orthant_id=np.unpackbits(orthant_id)
+        # 2. generate batch of random directions.
+        theta_batch=self.theta_generation(batch_size)
+        # 3. change signs in batch so that it matches that of given orthant.
+        target_bits=original_orthant_id[:self.d]
+        target_bits=target_bits.astype(int)
+        target_signs=(target_bits*2)-1 #mapping 0,1 to -1,1
+        orthant_thetas=np.abs(theta_batch)*target_signs
+        return orthant_thetas 
+
     def R(self,thetas):
         """
         Returns the maximum length 'R' along that direcions of the 

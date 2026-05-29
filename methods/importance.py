@@ -9,21 +9,6 @@ from scipy.optimize import direct, minimize_scalar
 class importance_sampling:
 
 
-    def importance_orthant(self,orthant_id,batch_size):
-        """
-        generate random uniform directions, change signs to match the signs of the orthants exactly. 
-        """
-        # 1. unpack original orthant id in 1s and 0s
-        original_orthant_id=np.unpackbits(orthant_id,axis=1)
-        # 2. generate batch of random directions.
-        theta_batch=self.theta_generation(batch_size)
-        # 3. change signs in batch so that it matches that of given orthant.
-        target_bits=original_orthant_id[:,:self.d]
-        target_bits=target_bits.astype(int)
-        target_signs=(target_bits*2)-1 #mapping 0,1 to -1,1
-        orthant_thetas=np.abs(theta_batch)*target_signs
-        return orthant_thetas,theta_batch 
-
     def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau,batch,orthants_batch=None,global_mean=None):
         """
         Returns directions from theta_batch that are aprat enough and are top-m based on the mass.
@@ -50,7 +35,6 @@ class importance_sampling:
             j=0
             m1=mass_batch[sorted_mass_indices[0]] 
             # change m1---> m1/avg. problem
-            print(orthants_batch)
             # print(len(orthants_batch),len(theta_batch),len(mass_batch))
             while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * (m1/global_mean):
                 # either I have enough directions or I stop if i dont have enough far aprat directions.
@@ -61,22 +45,27 @@ class importance_sampling:
                 else:
                     selected_orthant_indices.append(sorted_mass_indices[j])
                     j+=1
-            print(sorted_mass_indices)
-            print(selected_orthant_indices,j)
+            # print(sorted_mass_indices)
+            # temp=orthants_batch[sorted_mass_indices]
+            # print(temp)
+            # print(selected_orthant_indices,j)
+            # for i in selected_orthant_indices:
+            #     print(orthants_batch[i],orthants_batch[i-1])
             return orthants_batch[selected_orthant_indices],theta_batch[selected_orthant_indices],mass_batch[selected_orthant_indices]
 
 
-    def importance_r(self, log_g_r, R_batch, theta_batch, percentage_mass=0.99):
+    def importance_r(self,log_g_r, R_batch, theta_batch, percentage_mass=0.99):
         '''
         This finds interval [a,b] for given directions thetas such that this smaller region
         has percentage_mass*total area under the curve of g_r function from [0,R_] support.
         '''
 
         # had to do this since, shifted to log output in the original density functions.
-        def g_r(r,theta):
-            return np.exp(log_g_r(r,theta))
         def process_single(R_,theta):
+            def g_r(r,theta):
+                return np.exp(log_g_r(r,theta))
             total_mass = quad(g_r, 0, R_, args=(theta,))[0]
+        
             target = percentage_mass * total_mass
 
             a, b = 0, R_
@@ -155,11 +144,9 @@ class importance_sampling:
                     #break
             return a, b,f_max_theta, total_mass
 
-
         results=Parallel(n_jobs=-1)(
                 delayed(process_single)(R_batch[i],theta_batch[i])
                 for i in range(len(R_batch)) )       
-
         a_vals,b_vals,f_max_batch,total_mass_batch=zip(*results)
 
         # Looping approach

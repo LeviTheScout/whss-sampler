@@ -59,17 +59,17 @@ class sampling:
                     ratios=importance_mass/np.sum(importance_mass)
 
                     for i in range(len(importance_orthants)):
-                        one_orthant_samples=[]
-                        one_orthant_samples=self.importance_orthants(importance_orthants[i],batch_size/m)
+                        one_orthant_thetas=[]
+                        one_orthant_thetas=self.orthant_theta_generator(importance_orthants[i],batch_size/m)
+
                     # taking uniform number of possible samples in all directions.
-                        theta_batch.extend(one_orthant_samples)
+                        theta_batch.extend(one_orthant_thetas)
                     theta_batch=np.array(theta_batch)
                 else:
                     theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,local_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 #use this total_mass_batch for the running mean and variance calculation.
-
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.log(np.random.uniform(0,1,len(theta_batch)))
@@ -100,8 +100,9 @@ class sampling:
             if first:
                 # change tau here. 
                 # tau = factor / mean, need to make sure it is fine for both batch wise and global.
-                top_m_orthants,top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,orthants_batch=top_orthants,batch=False)
+                top_m_orthants,top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,orthants_batch=np.array(top_orthants),batch=False)
                 # print(top_m_theta)
+                print(len(top_m_orthants))
                 # print(correspondig_masses)
 
                 return accepted,rejected,emperical_f_max,top_m_orthants,top_m_theta,correspondig_masses
