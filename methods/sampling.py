@@ -132,25 +132,32 @@ class sampling:
                 importance_orthants=top_m_orthants
                 print('switching to importance theta.')
             while (self.k-accepted_count)>0:
+                
                 remaining=self.k-accepted_count
-                new_acc,new_reject,new_emp_max=batch_sampling(remaining+round(remaining*alpha),theta_sampling=theta_sampling,importance_directions=importance_directions,
+                new_batch_size=remaining+round(remaining*alpha)
+                new_acc,new_reject,new_emp_max=batch_sampling(no_samples=new_batch_size,theta_sampling=theta_sampling,importance_directions=importance_directions,
                                                               importance_orthants=importance_orthants,importance_mass=importance_mass,first=False)
                 if new_emp_max<=emperical_f_max:
+                    print('old f_max')
                     u=new_acc.u
                     den=new_acc.density
-                    mask= emperical_f_max*np.array(u)<np.array(den)
+                    mask= np.log(emperical_f_max)+np.array(u)<np.array(den)
                     rejected.extend(new_acc.filter(~mask))
                     new_acc=new_acc.filter(mask)
                 
                     accepted.extend(new_acc)
+                    print(remaining)
+                    print(len(accepted.u))
                 else:
+                    print('new f_max ---- ',new_emp_max,emperical_f_max)
                     u=accepted.u
                     den=accepted.density
-                    mask= new_emp_max*np.array(u)<np.array(den) 
+                    mask= np.log(new_emp_max)+np.array(u)<np.array(den) 
                     
                     rejected.extend(accepted.filter(~mask))
                     accepted=accepted.filter(mask)
                     accepted.extend(new_acc)
+            
                     # This new rejected ones that come from accepted will be append in the end.
                 rejected.extend(new_reject)
                 accepted_count=len(accepted.u)
@@ -158,6 +165,7 @@ class sampling:
                 previous=accepted_count
             ans_accepted=list(zip(accepted.theta,accepted.r_batch))
             ans_rejected=list(zip(rejected.theta,rejected.r_batch))
+        print('done')
         return ans_accepted,ans_rejected
 
 
