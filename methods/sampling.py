@@ -41,7 +41,7 @@ class sampling:
         i will only have to see ONLY previous accepted samples (not rejected ones since they are 
         even smaller.)
         
-        density: f(r) * r^(d-1)
+        density: log(f(r)) + (d-1) log(r)
         """
         maximums=[]
         def batch_sampling(no_samples, first,theta_sampling=False,importance_orthants=None, importance_directions=None, importance_mass=None):   
@@ -102,9 +102,6 @@ class sampling:
                 # tau = factor / mean, need to make sure it is fine for both batch wise and global.
                 top_m_orthants,top_m_theta, correspondig_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,orthants_batch=np.array(top_orthants),batch=False)
                 # print(top_m_theta)
-                print(len(top_m_orthants))
-                # print(correspondig_masses)
-
                 return accepted,rejected,emperical_f_max,top_m_orthants,top_m_theta,correspondig_masses
             return accepted,rejected,emperical_f_max
 
@@ -138,7 +135,7 @@ class sampling:
                 new_acc,new_reject,new_emp_max=batch_sampling(no_samples=new_batch_size,theta_sampling=theta_sampling,importance_directions=importance_directions,
                                                               importance_orthants=importance_orthants,importance_mass=importance_mass,first=False)
                 if new_emp_max<=emperical_f_max:
-                    print('old f_max')
+                    # print('old f_max')
                     u=new_acc.u
                     den=new_acc.density
                     mask= np.log(emperical_f_max)+np.array(u)<np.array(den)
@@ -146,10 +143,8 @@ class sampling:
                     new_acc=new_acc.filter(mask)
                 
                     accepted.extend(new_acc)
-                    print(remaining)
-                    print(len(accepted.u))
                 else:
-                    print('new f_max ---- ',new_emp_max,emperical_f_max)
+                    # print('new f_max ---- ',new_emp_max,emperical_f_max)
                     u=accepted.u
                     den=accepted.density
                     mask= np.log(new_emp_max)+np.array(u)<np.array(den) 
@@ -165,7 +160,7 @@ class sampling:
                 previous=accepted_count
             ans_accepted=list(zip(accepted.theta,accepted.r_batch))
             ans_rejected=list(zip(rejected.theta,rejected.r_batch))
-        print('done')
+        print('Done!')
         return ans_accepted,ans_rejected
 
 

@@ -53,15 +53,6 @@ class utilities:
         #check orthants of two points using np.array_equal(id_a,id_b)
         return orthant_ids
         
-    def projection_testing(self,accepted,g_r):
-        """
-        - Generte random direction.
-        - Take projection of samples along that direction.
-        - Projection of density (dont know how to do this).
-        - measure distance (Primarily KS, but could use others too).
-        """
-
-        return
         
     def x_y_view(self, accepted):
         """

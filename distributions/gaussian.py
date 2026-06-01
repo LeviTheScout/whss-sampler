@@ -1,4 +1,6 @@
 import numpy as np
+import scipy.linalg
+from numba import njit
 from ..base.nsmc_sampling import nsmc_sampling
 
 class nsmc_sampling_gaussian(nsmc_sampling):
@@ -31,7 +33,10 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             L = np.linalg.cholesky(self.sigma)
             log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
             log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
-            
+            mu=self.mu
+            dimension=self.d
+
+            @njit
             def f_r_gauss(r, theta_batch): 
                 # here r is distance from origin not directional vector.
                 # r will be a (batch_size,) dim vector and theta_batch will be (batch_size,d) dim matrix
@@ -44,15 +49,15 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
                     
                 x_pos = r[:,None]*theta_batch
-                diff = x_pos - self.mu
+                diff = x_pos - mu
                 # Solve L y = diff
                 y = np.linalg.solve(L, diff.T).T
-
+                #y=scipy.linalg.solve_triangular(L,diff.T,lower=True).T
                 w = np.sum(y**2, axis=1)   # = diff^T Sigma^{-1} diff
 
                 log_density = log_norm_const - 0.5 * w
                 
-                log_volume = (self.d - 1) * np.log(r)
+                log_volume = (dimension - 1) * np.log(r+1e-10)
 
                 # result=np.exp(log_volume + log_density)
                 result=log_volume+log_density

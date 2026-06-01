@@ -1,6 +1,9 @@
 
+from math import exp
 import numpy as np
+from numpy.core.fromnumeric import argmax
 from scipy.integrate import quad
+from numba import njit,prange
 from sambal import random_on_cap
 from joblib import Parallel,delayed
 from scipy.optimize import direct, minimize_scalar
@@ -53,6 +56,29 @@ class importance_sampling:
             #     print(orthants_batch[i],orthants_batch[i-1])
             return orthants_batch[selected_orthant_indices],theta_batch[selected_orthant_indices],mass_batch[selected_orthant_indices]
 
+    @njit(Parallel=True)
+    def importance_r(log_g_r, R_batch, theta_batch,grid_size=100000, percentage_mass=0.99):
+        '''
+        This finds interval [a,b] for given directions thetas such that this smaller region
+        has percentage_mass*total area under the curve of g_r function from [0,R_] support.
+        '''
+        batch_size=len(R_batch)
+        a_vals,b_vals,f_max_batch,total_mass_batch=np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size)
+        
+        for i in prange(batch_size):
+            R_,theta=R_batch[i],theta_batch[i]
+            grid= np.linspace(0,R_,grid_size)
+            log_g_r_grid=log_g_r(grid,theta) # will have to fix this function.
+
+            arg_max=np.argmax(log_g_r_grid)
+            local_log_f_max=log_g_r_grid[arg_max]
+            
+            prob_dens=np.exp(log_g_r_grid - local_log_f_max)
+
+            
+        return
+         
+
 
     def importance_r(self,log_g_r, R_batch, theta_batch, percentage_mass=0.99):
         '''
@@ -65,7 +91,7 @@ class importance_sampling:
             def g_r(r,theta):
                 return np.exp(log_g_r(r,theta))
             total_mass = quad(g_r, 0, R_, args=(theta,))[0]
-        
+
             target = percentage_mass * total_mass
 
             a, b = 0, R_
@@ -80,7 +106,7 @@ class importance_sampling:
                     locally_biased=True  # faster, accepts some risk
                 )
                 peak_loc = res_coarse.x[0]
-                
+
                 # Brent precisely within a tight window around DIRECT's answer
                 lo = max(1e-10, peak_loc - 0.05 * R_i)
                 hi = min(R_i, peak_loc + 0.05 * R_i)
@@ -102,12 +128,12 @@ class importance_sampling:
             # if quad(g_r,g_r,min_r,max_r,args=(theta,))< percentage_mass*total_mass):
                 # increse from both sides to accompany percentage_mass 
             #shorten if more than percentage_mass if possible
-             
+
             def second_search(ini, final):
                 cuts = np.linspace(ini, final, 11)
                 bin_areas = np.array([quad(g_r, cuts[i], cuts[i+1], args=(theta,))[0] 
                                       for i in range(10)])
-                
+
                 best_a, best_b = ini, final
                 min_width = final - ini
                 found = False
@@ -116,7 +142,7 @@ class importance_sampling:
                 for i in range(10):
                     for j in range(i, 10):
                         current_window_mass = np.sum(bin_areas[i : j+1])
-                        
+
                         # If this window captures the target
                         if current_window_mass >= target:
                             current_width = cuts[j+1] - cuts[i]
@@ -125,7 +151,7 @@ class importance_sampling:
                                 min_width = current_width
                                 best_a, best_b = cuts[i], cuts[j+1]
                                 found = True
-                
+
                 #print(current_width)
                 return best_a, best_b
 

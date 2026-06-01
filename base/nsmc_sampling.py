@@ -1,8 +1,8 @@
 from ..methods.sampling import sampling
 from ..methods.importance import importance_sampling
 from ..methods.utility import utilities
-
-class nsmc_sampling(sampling, importance_sampling, utilities):
+from ..methods.convergence import convergence
+class nsmc_sampling(sampling, importance_sampling, utilities,convergence):
     """
     Parent class to generalise the nsmc_sampling. It has the general functions used for any sampling density.
     Parameters:
