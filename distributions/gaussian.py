@@ -22,86 +22,64 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
     def f_r_gaussian(self):
             """
+            - using this nested function for first function to be used for substituting Parameters which are constant
+              across all points and inner function to be returend with actual density value.
             - Vectorised. 
             This function returns the d-dimensional multivariate Gaussian density which takes input 'r' a 
             length from origin and returns the gaussian at that function.
-
+            - returns log(f(r))+(d-1)*log(r)
+            - should be able to handle one theta - many r, many theta - many r, one theta - one r
             
             Edit: Now I tried to use cholesky to tackle inverse and uses log and then exponential to make it more numerically stable (not necessary but good addition maybe).
             """
             
             L = np.linalg.cholesky(self.sigma)
+
+            # L_inv computation.
+            L_inv=np.linalg.inv(L) # will this be fine in high d? could lead to bottleneck in high-d
+            #can use scipy also to make it mroe feasible.
+            #I=np.eye(self.d)
+            #L_inv=scipy.linalg.solve_triangular(L,I,lower=True)
+
             log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
             log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
-            mu=self.mu
+            mu=self.mu 
             dimension=self.d
 
             @njit
-            def f_r_gauss(r, theta_batch): 
-                # here r is distance from origin not directional vector.
-                # r will be a (batch_size,) dim vector and theta_batch will be (batch_size,d) dim matrix
-                # hence each row of theta_batch will be one sample
-                r = np.atleast_1d(r)
+            def f_r_gauss(r_batch,theta_batch):
+                x_pos=r_batch.reshape(-1,1)*theta_batch # (N,d)
+                # works fine for both many theta-one r case and one theta-many r case.
 
-                theta_batch = np.asarray(theta_batch)
-                if theta_batch.ndim == 1:
-                    theta_batch = theta_batch[None, :]   # (1, d)
-
-                    
-                x_pos = r[:,None]*theta_batch
                 diff = x_pos - mu
-                # Solve L y = diff
-                y = np.linalg.solve(L, diff.T).T
-                #y=scipy.linalg.solve_triangular(L,diff.T,lower=True).T
+                y = diff @ L_inv.T
+                # this actual computation of inverse once and then use multiplication is feasible because of njit.
+                # otherwise we would have used solve.
                 w = np.sum(y**2, axis=1)   # = diff^T Sigma^{-1} diff
 
                 log_density = log_norm_const - 0.5 * w
                 
-                log_volume = (dimension - 1) * np.log(r+1e-10)
+                log_volume = (dimension - 1) * np.log(r_batch+1e-10)
 
                 # result=np.exp(log_volume + log_density)
-                result=log_volume+log_density
-                if result.shape[0]==1:
-                    return result[0]
-                return result            
+                return log_volume+log_density
+            #
+            # def f_r_gauss(r, theta_batch): 
+            #     # here r is distance from origin not directional vector.
+            #     # r will be a (batch_size,) dim vector and theta_batch will be (batch_size,d) dim matrix
+            #     # hence each row of theta_batch will be one sample
+            #     r = np.atleast_1d(r)
+            #
+            #     theta_batch = np.asarray(theta_batch)
+            #     if theta_batch.ndim == 1:
+            #         theta_batch = theta_batch[None, :]   # (1, d)
+            #
+            #
+            #     x_pos = r[:,None]*theta_batch
+            #     if result.shape[0]==1:
+            #         return result[0]
+            #     return result            
 
-            # 1. Get the largest eigenvalue (variance along the major axis)
-            #eigvals = np.linalg.eigvalsh(self.sigma)
-            #max_var = eigvals[-1] 
-
-            # 2. Get the norm of the mean
-            #mu_norm = np.linalg.norm(self.mu)
-
-            # 3. Solve the radial mode equation using the maximum variance
-            #x_mode = (mu_norm + np.sqrt(mu_norm**2 + 4 * (self.d - 1) * max_var)) / 2.0
-            # mu_norm = np.linalg.norm(self.mu)
-            # x_mode = np.sqrt(self.d - 1) + mu_norm
-            #
-            #
-            # if mu_norm > 0:
-            #     theta_star = self.mu / mu_norm
-            # else:
-            #     theta_star = np.zeros(self.d)
-            #     theta_star[0] = 1
-            # f_max = f_r_gauss(np.array([x_mode]), theta_star[None,:])
-            
-            #
-            # x_mode = np.sqrt(max(0, self.d - 1 + np.linalg.norm(self.mu)**2))
-            # mu_norm = np.linalg.norm(self.mu)
-            # if mu_norm > 0:
-            #     theta_star = self.mu / mu_norm
-            # else:
-            #     theta_star = np.zeros(self.d)
-            #     theta_star[0] = 1
-            #
-            # f_max = f_r_gauss(x_mode, theta_star) 
-            
-            
-            
-            # r_mode = np.sqrt(max(0, self.d - 1))
-            # theta_star = np.zeros(self.d)
-            # theta_star[0] = 1.0
-            # f_max = f_r_gauss(r_mode, theta_star) * 1.05
             return f_r_gauss
 
     def get_samples(self,batch_size=None):
