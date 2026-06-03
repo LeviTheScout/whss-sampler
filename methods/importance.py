@@ -15,7 +15,7 @@ def importance_r_numba(log_g_r, R_batch, theta_batch,grid_size=100000, percentag
     has percentage_mass*total area under the curve of g_r function from [0,R_] support.
     '''
     batch_size=len(R_batch)
-    a_vals,b_vals,log_f_max_batch,log_total_mass_batch=np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size)
+    a_vals,b_vals,log_f_max_batch,total_mass_batch=np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size)
     
     for i in prange(batch_size):
         R_,theta=R_batch[i],theta_batch[i]
@@ -46,9 +46,9 @@ def importance_r_numba(log_g_r, R_batch, theta_batch,grid_size=100000, percentag
         a_vals[i]=a
         b_vals[i]=b
         log_f_max_batch[i]=local_log_f_max
-        log_total_mass_batch[i]=log_total_mass
-
-    return a_vals,b_vals,log_f_max_batch,log_total_mass_batch
+        total_mass_batch[i]=np.exp(log_total_mass)
+        
+    return a_vals,b_vals,log_f_max_batch,total_mass_batch
 
 class importance_sampling:
 
@@ -77,7 +77,8 @@ class importance_sampling:
         else:
             selected_orthant_indices=[]
             j=0
-            m1=mass_batch[sorted_mass_indices[0]] 
+            # mass_batch=np.exp(mass_batch)
+            m1=mass_batch[sorted_mass_indices[0]]
             # change m1---> m1/avg. problem
             # print(len(orthants_batch),len(theta_batch),len(mass_batch))
             while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * (m1/global_mean):
@@ -95,6 +96,7 @@ class importance_sampling:
             # print(selected_orthant_indices,j)
             # for i in selected_orthant_indices:
             #     print(orthants_batch[i],orthants_batch[i-1])
+            print(len(selected_orthant_indices),j,m1,mass_batch[sorted_mass_indices[0]],tau*(m1/global_mean))
             return orthants_batch[selected_orthant_indices],theta_batch[selected_orthant_indices],mass_batch[selected_orthant_indices]
 
          

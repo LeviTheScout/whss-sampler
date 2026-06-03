@@ -1,5 +1,7 @@
 import numpy as np
+from scipy.optimize import toms748
 from tqdm import tqdm
+import time
 from dataclasses import dataclass
 
 @dataclass
@@ -24,7 +26,6 @@ class Samples:
 
 
 class sampling:
-
     def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
@@ -44,8 +45,9 @@ class sampling:
         density: log(f(r)) + (d-1) log(r)
         """
         maximums_log=[]
+        t_main=time.perf_counter()
         def batch_sampling(no_samples, first,theta_sampling=False,importance_orthants=None, importance_directions=None, importance_mass=None):   
-            top_mass_theta,top_orthants,top_log_masses=[],[],[] #shifted this from outside batch_sampling function to here.
+            top_mass_theta,top_orthants,top_masses=[],[],[] #shifted this from outside batch_sampling function to here.
             running_mean,running_variance,n=0,0,0
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),sample_log_density=np.array([]))
             for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
@@ -69,10 +71,25 @@ class sampling:
                     # print(len(importance_orthants))
                     # print(theta_batch.shape)
                 else:
+                    t0=time.perf_counter()
                     theta_batch=self.theta_generation(batch_size)
+                    t1=time.perf_counter()
+                    print(t1-t0,'theta_generation')
+                t2=time.perf_counter()
                 R_batch=self.R(theta_batch)
-                a_batch,b_batch,log_f_max_batch,log_total_mass_batch=self.importance_r(density,R_batch,theta_batch)
-                #use this log_total_mass_batch for the running mean and variance calculation.
+                t3=time.perf_counter()
+                print(t3-t2,'R_')
+                # t_dummy=time.perf_counter()
+                # dummy_theta=self.theta_generation(1)
+                # _0,_1,_2,_4=self.importance_r(density,self.R(dummy_theta),dummy_theta)
+                # t_dummy_end=time.perf_counter()
+                # print(t_dummy_end-t_dummy,'dummy')
+                t4=time.perf_counter()
+                a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                #use this total_mass_batch for the running mean and variance calculation.
+                t5=time.perf_counter()
+                print(t5-t4,'importance_r')
+
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
                 u_batch=np.log(np.random.uniform(0,1,len(theta_batch)))
@@ -83,17 +100,17 @@ class sampling:
                 #for importance in theta
                 if first:
                     #update running_mean and variance here.
-                    m=len(log_total_mass_batch)
-                    running_mean=(n*running_mean+np.sum(log_total_mass_batch))/(n+m)
+                    m=len(total_mass_batch)
+                    running_mean=(n*running_mean+np.sum(total_mass_batch))/(n+m)
                     n+=m
                     thresh_angle=2*angle_importance
-                    top_m_orthants_batch,top_m_theta_batch,top_m_log_mass_batch=self.away_thetas_batch(theta_batch,log_total_mass_batch,thresh_angle,tau,batch=True)
+                    top_m_orthants_batch,top_m_theta_batch,top_m_mass_batch=self.away_thetas_batch(theta_batch,total_mass_batch,thresh_angle,tau,batch=True)
                     top_mass_theta.extend(top_m_theta_batch)
-                    top_log_masses.extend(top_m_log_mass_batch)
+                    top_masses.extend(top_m_mass_batch)
                     top_orthants.extend(top_m_orthants_batch)
-                    print(len(top_m_orthants_batch))
-                    print(len(top_orthants))
-                    # print(top_m_theta_batch,top_m_log_mass_batch)
+                    # print(len(top_m_orthants_batch))
+                    # print(len(top_orthants))
+                    # print(top_m_theta_batch,top_m_mass_batch)
             
             emperical_log_f_max=np.max(np.array(maximums_log))
             mask = emperical_log_f_max+possible_samples.u<possible_samples.sample_log_density
@@ -105,16 +122,16 @@ class sampling:
             if first:
                 # change tau here. 
                 # tau = factor / mean, need to make sure it is fine for both batch wise and global.
-                top_m_orthants,top_m_theta, corresponding_log_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_log_masses),thresh_angle,tau,global_mean=running_mean,orthants_batch=np.array(top_orthants),batch=False)
-                print(len(top_m_orthants))
-                return accepted,rejected,emperical_log_f_max,top_m_orthants,top_m_theta,corresponding_log_masses
+                top_m_orthants,top_m_theta, corresponding_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,orthants_batch=np.array(top_orthants),batch=False)
+                # print(len(top_m_orthants))
+                return accepted,rejected,emperical_log_f_max,top_m_orthants,top_m_theta,corresponding_masses
             return accepted,rejected,emperical_log_f_max
 
 
         with tqdm(total=self.k,unit=' accepted samples ') as pbar:
             previous=0
 
-            accepted,rejected,emperical_log_f_max, top_m_orthants,top_m_theta, top_log_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
+            accepted,rejected,emperical_log_f_max, top_m_orthants,top_m_theta, top_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
              
             accepted_count=len(accepted.u)
             pbar.update(accepted_count)
@@ -130,7 +147,7 @@ class sampling:
                 # do importance theta sampling
                 theta_sampling=True
                 importance_directions=top_m_theta
-                importance_mass=top_log_masses
+                importance_mass=top_masses
                 importance_orthants=top_m_orthants
                 print('switching to importance theta.')
             while (self.k-accepted_count)>0:
@@ -166,6 +183,8 @@ class sampling:
             ans_accepted=list(zip(accepted.theta,accepted.r_batch))
             ans_rejected=list(zip(rejected.theta,rejected.r_batch))
         print('Done!')
+        t_main_end=time.perf_counter()
+        print(t_main_end-t_main,'whole','--samples per second--',len(ans_accepted)+len(ans_rejected)/(t_main_end-t_main))
         return ans_accepted,ans_rejected
 
 
@@ -196,7 +215,7 @@ class sampling:
 
                 theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
-                a_batch,b_batch,log_total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                a_batch,b_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 sampled_f=np.random.uniform(0,f_max,size=batch_size)
                 density_vals=density(sampled_r_batch,theta_batch)
