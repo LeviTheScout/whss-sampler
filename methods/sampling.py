@@ -26,7 +26,7 @@ class Samples:
 
 
 class sampling:
-    def sampling_f_r_new(self,density,batch_size=1000,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
+    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -45,31 +45,24 @@ class sampling:
         density: log(f(r)) + (d-1) log(r)
         """
         maximums_log=[]
+        rng=np.random.default_rng()
         t_main=time.perf_counter()
         def batch_sampling(no_samples, first,theta_sampling=False,importance_orthants=None, importance_directions=None, importance_mass=None):   
             top_mass_theta,top_orthants,top_masses=[],[],[] #shifted this from outside batch_sampling function to here.
             running_mean,running_variance,n=0,0,0
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),sample_log_density=np.array([]))
-            for i in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
+            for _ in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
                 if theta_sampling:
-                    # how many to sample wrt each theta? -- currently doing no_samples/m 
-                    # hence equal tries in each cone but might want rewright them.
-                    theta_batch=[]
-                    m=len(importance_orthants)
-                    # print(list(zip(importance_directions,importance_mass))) 
-                    #ratios of how much we will sample each direction.
-                    ratios=importance_mass/np.sum(importance_mass)
-
-                    for i in range(len(importance_orthants)):
-                        one_orthant_thetas=[]
-                        one_orthant_thetas=self.orthant_theta_generator(importance_orthants[i],batch_size/m)
-
-                    # taking uniform number of possible samples in all directions.
-                        theta_batch.extend(one_orthant_thetas)
-                    theta_batch=np.array(theta_batch)
-                    # print(m)
-                    # print(len(importance_orthants))
-                    # print(theta_batch.shape)
+                    # will do rejection sampling on orthants to choose one for each batch.
+                    selected=False
+                    number_of_orthants=len(importance_orthants)
+                    max_prob=importance_mass[0]
+                    while not selected:
+                        index=rng.integers(number_of_orthants-1)
+                        selected= max_prob*(rng.uniform(0,1))<=importance_mass[index]
+                        if selected:
+                            theta_batch=self.orthant_theta_generator(importance_orthants[index],batch_size)
+                            print(np.unpackbits(importance_orthants[index]))
                 else:
                     t0=time.perf_counter()
                     theta_batch=self.theta_generation(batch_size)

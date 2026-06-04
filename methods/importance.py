@@ -75,30 +75,18 @@ class importance_sampling:
             #makes sure that higher mass is kept when there is clash of two directions in same orthant.
             return sorted_orthants,thetas_new,masses_new
         else:
-            selected_orthant_indices=[]
-            j=0
-            # mass_batch=np.exp(mass_batch)
-            m1=mass_batch[sorted_mass_indices[0]]
-            # change m1---> m1/avg. problem
-            # print(len(orthants_batch),len(theta_batch),len(mass_batch))
-            while j < len(sorted_mass_indices) and mass_batch[sorted_mass_indices[j]] >= tau * (m1/global_mean):
-                # either I have enough directions or I stop if i dont have enough far aprat directions.
-                for k in selected_orthant_indices:
-                    if np.array_equal(orthants_batch[k],orthants_batch[sorted_mass_indices[j]]):
-                        j+=1
-                        break
-                else:
-                    selected_orthant_indices.append(sorted_mass_indices[j])
-                    j+=1
-            # print(sorted_mass_indices)
-            # temp=orthants_batch[sorted_mass_indices]
-            # print(temp)
-            # print(selected_orthant_indices,j)
-            # for i in selected_orthant_indices:
-            #     print(orthants_batch[i],orthants_batch[i-1])
-            # print(len(selected_orthant_indices),j,m1,mass_batch[sorted_mass_indices[0]],tau*(m1/global_mean))
-            return orthants_batch[selected_orthant_indices],theta_batch[selected_orthant_indices],mass_batch[selected_orthant_indices]
-
+            # input: top masees batch wise for orthants.
+            # select top mass based on orthant. and assign it as mass of that orthatnt.
+            # return: all orthatns in desceneding order of mass along with its maximum mass.
+            orderd=orthants_batch[sorted_mass_indices]
+            _,idx=np.unique(orderd,return_index=True)
+            idx=np.sort(idx)
+            orthants_descending=orderd[idx]
+            masses_descending=mass_batch[sorted_mass_indices][idx]
+            theta_descending=theta_batch[sorted_mass_indices][idx]
+            print(np.unpackbits(orthants_descending,axis=1),masses_descending)
+            # print(mass_batch[sorted_mass_indices])
+            return orthants_descending,theta_descending,masses_descending
          
     
     def importance_r(self,density,R_batch,theta_batch):
