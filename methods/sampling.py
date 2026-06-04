@@ -62,26 +62,19 @@ class sampling:
                         selected= max_prob*(rng.uniform(0,1))<=importance_mass[index]
                         if selected:
                             theta_batch=self.orthant_theta_generator(importance_orthants[index],batch_size)
-                            print(np.unpackbits(importance_orthants[index]))
+                            print(importance_mass)
+                            R_batch=self.R(theta_batch)
+                            a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                            new_orthant_avg_mass=np.average(total_mass_batch)
+                            importance_mass[index]=new_orthant_avg_mass
+                             
                 else:
-                    t0=time.perf_counter()
+                    # t0=time.perf_counter()
                     theta_batch=self.theta_generation(batch_size)
-                    t1=time.perf_counter()
-                    # print(t1-t0,'theta_generation')
-                t2=time.perf_counter()
-                R_batch=self.R(theta_batch)
-                t3=time.perf_counter()
-                # print(t3-t2,'R_')
-                # t_dummy=time.perf_counter()
-                # dummy_theta=self.theta_generation(1)
-                # _0,_1,_2,_4=self.importance_r(density,self.R(dummy_theta),dummy_theta)
-                # t_dummy_end=time.perf_counter()
-                # print(t_dummy_end-t_dummy,'dummy')
-                t4=time.perf_counter()
-                a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                    R_batch=self.R(theta_batch)
+                    # t1=time.perf_counter()
+                    a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 #use this total_mass_batch for the running mean and variance calculation.
-                t5=time.perf_counter()
-                # print(t5-t4,'importance_r')
 
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
@@ -118,7 +111,7 @@ class sampling:
                 top_m_orthants,top_m_theta, corresponding_masses=self.away_thetas_batch(np.array(top_mass_theta),np.array(top_masses),thresh_angle,tau,global_mean=running_mean,orthants_batch=np.array(top_orthants),batch=False)
                 # print(len(top_m_orthants))
                 return accepted,rejected,emperical_log_f_max,top_m_orthants,top_m_theta,corresponding_masses
-            return accepted,rejected,emperical_log_f_max
+            return accepted,rejected,emperical_log_f_max,importance_orthants,importance_mass
 
 
         with tqdm(total=self.k,unit=' accepted samples ') as pbar:
@@ -148,7 +141,7 @@ class sampling:
                 
                 remaining=self.k-accepted_count
                 new_batch_size=remaining+round(remaining*alpha)
-                new_acc,new_reject,new_emp_log_f_max=batch_sampling(no_samples=new_batch_size,theta_sampling=theta_sampling,importance_directions=importance_directions,
+                new_acc,new_reject,new_emp_log_f_max,importance_orthants,importance_mass=batch_sampling(no_samples=new_batch_size,theta_sampling=theta_sampling,importance_directions=importance_directions,
                                                               importance_orthants=importance_orthants,importance_mass=importance_mass,first=False)
                 if new_emp_log_f_max<=emperical_log_f_max:
                     # print('old f_max')
