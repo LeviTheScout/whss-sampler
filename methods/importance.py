@@ -38,7 +38,7 @@ def importance_r_numba(log_g_r, R_batch, theta_batch,grid_size=100000, percentag
 
         for right in range(grid_size):
             while cdf[right]-cdf[left]>=target_mass:
-                current_width=right-left
+                current_width=r_grid[right]-r_grid[left]
                 if current_width<=min_width:
                     min_width=current_width
                     a,b=r_grid[left],r_grid[right]
@@ -96,7 +96,7 @@ class importance_sampling:
             # print(selected_orthant_indices,j)
             # for i in selected_orthant_indices:
             #     print(orthants_batch[i],orthants_batch[i-1])
-            print(len(selected_orthant_indices),j,m1,mass_batch[sorted_mass_indices[0]],tau*(m1/global_mean))
+            # print(len(selected_orthant_indices),j,m1,mass_batch[sorted_mass_indices[0]],tau*(m1/global_mean))
             return orthants_batch[selected_orthant_indices],theta_batch[selected_orthant_indices],mass_batch[selected_orthant_indices]
 
          

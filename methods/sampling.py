@@ -26,7 +26,7 @@ class Samples:
 
 
 class sampling:
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
+    def sampling_f_r_new(self,density,batch_size=1000,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -74,11 +74,11 @@ class sampling:
                     t0=time.perf_counter()
                     theta_batch=self.theta_generation(batch_size)
                     t1=time.perf_counter()
-                    print(t1-t0,'theta_generation')
+                    # print(t1-t0,'theta_generation')
                 t2=time.perf_counter()
                 R_batch=self.R(theta_batch)
                 t3=time.perf_counter()
-                print(t3-t2,'R_')
+                # print(t3-t2,'R_')
                 # t_dummy=time.perf_counter()
                 # dummy_theta=self.theta_generation(1)
                 # _0,_1,_2,_4=self.importance_r(density,self.R(dummy_theta),dummy_theta)
@@ -88,7 +88,7 @@ class sampling:
                 a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 #use this total_mass_batch for the running mean and variance calculation.
                 t5=time.perf_counter()
-                print(t5-t4,'importance_r')
+                # print(t5-t4,'importance_r')
 
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
@@ -143,6 +143,7 @@ class sampling:
             acceptance_ratio=accepted_count/(accepted_count+rejected_count)
             # we put condtion here for importance theta, if i have acceptance ratio
             # smaller than 'threshold' then will go for importance theta sampling. 
+            print(acceptance_ratio,'acceptance_ratio',thresh_acceptance)
             if acceptance_ratio < thresh_acceptance:
                 # do importance theta sampling
                 theta_sampling=True
