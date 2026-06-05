@@ -62,12 +62,14 @@ class sampling:
                         selected= max_prob*(rng.uniform(0,1))<=importance_mass[index]
                         if selected:
                             theta_batch=self.orthant_theta_generator(importance_orthants[index],batch_size)
-                            print(importance_mass)
+                            # print(importance_mass)
                             R_batch=self.R(theta_batch)
                             a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                             new_orthant_avg_mass=np.average(total_mass_batch)
+                            sampled_r_batch=np.random.uniform(a_batch,b_batch)
+                            #dividing density with mass of that orthant, aka the bias mitigation step.
+                            density_vals=density(sampled_r_batch,theta_batch)-np.log(importance_mass[index])
                             importance_mass[index]=new_orthant_avg_mass
-                             
                 else:
                     # t0=time.perf_counter()
                     theta_batch=self.theta_generation(batch_size)
@@ -75,9 +77,9 @@ class sampling:
                     # t1=time.perf_counter()
                     a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 #use this total_mass_batch for the running mean and variance calculation.
-
-                sampled_r_batch=np.random.uniform(a_batch,b_batch)
-                density_vals=density(sampled_r_batch,theta_batch)
+                    sampled_r_batch=np.random.uniform(a_batch,b_batch)
+                    density_vals=density(sampled_r_batch,theta_batch)
+                    
                 u_batch=np.log(np.random.uniform(0,1,len(theta_batch)))
                 batch_samples=Samples(u=u_batch,theta=theta_batch,r_batch=sampled_r_batch,sample_log_density=density_vals)
                 possible_samples.extend(batch_samples)
@@ -167,9 +169,11 @@ class sampling:
                 accepted_count=len(accepted.u)
                 pbar.update(accepted_count-previous)
                 previous=accepted_count
+                # print(len(accepted.theta))
             ans_accepted=list(zip(accepted.theta,accepted.r_batch))
             ans_rejected=list(zip(rejected.theta,rejected.r_batch))
         print('Done!')
+        print(importance_mass)
         t_main_end=time.perf_counter()
         print(t_main_end-t_main,'whole','--samples per second--',len(ans_accepted)+len(ans_rejected)/(t_main_end-t_main))
         return ans_accepted,ans_rejected
