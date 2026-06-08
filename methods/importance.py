@@ -79,12 +79,12 @@ class importance_sampling:
             # select top mass based on orthant. and assign it as mass of that orthatnt.
             # return: all orthatns in desceneding order of mass along with its maximum mass.
             orderd=orthants_batch[sorted_mass_indices]
-            _,idx=np.unique(orderd,return_index=True)
+            _,idx=np.unique(orderd,return_index=True,axis=0)
             idx=np.sort(idx)
             orthants_descending=orderd[idx]
             masses_descending=mass_batch[sorted_mass_indices][idx]
             theta_descending=theta_batch[sorted_mass_indices][idx]
-            print(np.unpackbits(orthants_descending,axis=1),masses_descending)
+            # print(np.unpackbits(orthants_descending,axis=1),masses_descending)
             # print(mass_batch[sorted_mass_indices])
             return orthants_descending,theta_descending,masses_descending
          

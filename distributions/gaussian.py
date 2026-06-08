@@ -45,7 +45,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
             mu=self.mu 
             dimension=self.d
-
+             
             @njit
             def f_r_gauss(r_batch,theta_batch):
                 x_pos=r_batch.reshape(-1,1)*theta_batch # (N,d)

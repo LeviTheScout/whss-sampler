@@ -71,12 +71,20 @@ class sampling:
                             density_vals=density(sampled_r_batch,theta_batch)-np.log(importance_mass[index])
                             importance_mass[index]=new_orthant_avg_mass
                 else:
-                    # t0=time.perf_counter()
+                    t0=time.perf_counter()
                     theta_batch=self.theta_generation(batch_size)
                     R_batch=self.R(theta_batch)
-                    # t1=time.perf_counter()
+                    t1=time.perf_counter()
+                    print(t1-t0,'theta')
+                    theta_dummy=self.theta_generation(1)
+            
+                    _dummy,_2,_3,_4=self.importance_r(density,self.R(theta_dummy),theta_dummy)
+                    t2=time.perf_counter()
+                    print(t2-t1,'dummy')
                     a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 #use this total_mass_batch for the running mean and variance calculation.
+                    t3=time.perf_counter()
+                    print(t3-t2,'importance_r') 
                     sampled_r_batch=np.random.uniform(a_batch,b_batch)
                     density_vals=density(sampled_r_batch,theta_batch)
                     
