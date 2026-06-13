@@ -27,6 +27,7 @@ class Samples:
 
 class sampling:
     def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
+
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
         batch_size: no. of samples procced at a time.
@@ -44,11 +45,11 @@ class sampling:
         
         density: log(f(r)) + (d-1) log(r)
         """
-        maximums_log=[]
         rng=np.random.default_rng()
         t_main=time.perf_counter()
-        def batch_sampling(no_samples, first,theta_sampling=False,importance_orthants=None, importance_directions=None, importance_mass=None):   
+        def batch_sampling(no_samples, first,theta_sampling=False,importance_orthants=None, importance_directions=None, importance_mass=None,old_log_f_max=None):   
             top_mass_theta,top_orthants,top_masses=[],[],[] #shifted this from outside batch_sampling function to here.
+            maximums_log=[]
             running_mean,running_variance,n=0,0,0
             possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),sample_log_density=np.array([]))
             for _ in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
@@ -57,6 +58,7 @@ class sampling:
                     selected=False
                     number_of_orthants=len(importance_orthants)
                     max_prob=importance_mass[0]
+                    # print(len(importance_orthants))  
                     while not selected:
                         index=rng.integers(number_of_orthants-1)
                         selected= max_prob*(rng.uniform(0,1))<=importance_mass[index]
@@ -92,7 +94,8 @@ class sampling:
                 batch_samples=Samples(u=u_batch,theta=theta_batch,r_batch=sampled_r_batch,sample_log_density=density_vals)
                 possible_samples.extend(batch_samples)
                 maximums_log.append(np.max(log_f_max_batch))
-                
+                print(np.max(log_f_max_batch))
+                print(np.max(maximums_log),'array')
                 #for importance in theta
                 if first:
                     #update running_mean and variance here.
@@ -109,6 +112,11 @@ class sampling:
                     # print(top_m_theta_batch,top_m_mass_batch)
             
             emperical_log_f_max=np.max(np.array(maximums_log))
+            if old_log_f_max is not None and emperical_log_f_max <= old_log_f_max:
+                print(emperical_log_f_max,'loacal oneee')
+                print(np.max(np.array(maximums_log)))
+                emperical_log_f_max=old_log_f_max
+                
             mask = emperical_log_f_max+possible_samples.u<possible_samples.sample_log_density
             accepted=possible_samples.filter(mask)
             rejected=possible_samples.filter(~mask)
@@ -128,7 +136,7 @@ class sampling:
             previous=0
 
             accepted,rejected,emperical_log_f_max, top_m_orthants,top_m_theta, top_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
-             
+            # print(emperical_log_f_max) 
             accepted_count=len(accepted.u)
             pbar.update(accepted_count)
             rejected_count=len(rejected.u)
@@ -152,7 +160,8 @@ class sampling:
                 remaining=self.k-accepted_count
                 new_batch_size=remaining+round(remaining*alpha)
                 new_acc,new_reject,new_emp_log_f_max,importance_orthants,importance_mass=batch_sampling(no_samples=new_batch_size,theta_sampling=theta_sampling,importance_directions=importance_directions,
-                                                              importance_orthants=importance_orthants,importance_mass=importance_mass,first=False)
+                                                              importance_orthants=importance_orthants,importance_mass=importance_mass,first=False,old_log_f_max=emperical_log_f_max)
+                print(emperical_log_f_max,new_emp_log_f_max)
                 if new_emp_log_f_max<=emperical_log_f_max:
                     # print('old f_max')
                     u=new_acc.u
@@ -163,15 +172,17 @@ class sampling:
                 
                     accepted.extend(new_acc)
                 else:
-                    # print('new f_max ---- ',new_emp_log_f_max,emperical_log_f_max)
+                    print('new f_max ---- ',new_emp_log_f_max,emperical_log_f_max)
+                    emperical_log_f_max=new_emp_log_f_max
                     u=accepted.u
                     den=accepted.sample_log_density
-                    mask= new_emp_log_f_max+np.array(u)<np.array(den) 
+                    mask= emperical_log_f_max+np.array(u)<np.array(den) 
                     
+                    newly_rejected=accepted.filter(~mask) 
+                    print(len(newly_rejected.u), 'newly rejected from previous ones.')
                     rejected.extend(accepted.filter(~mask))
                     accepted=accepted.filter(mask)
                     accepted.extend(new_acc)
-            
                     # This new rejected ones that come from accepted will be append in the end.
                 rejected.extend(new_reject)
                 accepted_count=len(accepted.u)
