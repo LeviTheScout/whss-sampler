@@ -78,11 +78,11 @@ class sampling:
                     R_batch=self.R(theta_batch)
                     t1=time.perf_counter()
                     print(t1-t0,'theta')
-                    theta_dummy=self.theta_generation(1)
+                    # theta_dummy=self.theta_generation(1)
             
-                    _dummy,_2,_3,_4=self.importance_r(density,self.R(theta_dummy),theta_dummy)
+                    # _dummy,_2,_3,_4=self.importance_r(density,self.R(theta_dummy),theta_dummy)
                     t2=time.perf_counter()
-                    print(t2-t1,'dummy')
+                    # print(t2-t1,'dummy')
                     a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 #use this total_mass_batch for the running mean and variance calculation.
                     t3=time.perf_counter()

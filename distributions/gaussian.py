@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.linalg
-from numba import njit
+from numba import njit,prange
 from ..base.nsmc_sampling import nsmc_sampling
 
 class nsmc_sampling_gaussian(nsmc_sampling):
@@ -43,26 +43,69 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
             log_det_sigma = 2.0 * np.sum(np.log(np.diag(L)))
             log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
-            mu=self.mu 
+            mu=np.asarray(self.mu,dtype=np.float64) 
             dimension=self.d
-             
             @njit
-            def f_r_gauss(r_batch,theta_batch):
-                x_pos=r_batch.reshape(-1,1)*theta_batch # (N,d)
-                # works fine for both many theta-one r case and one theta-many r case.
-
-                diff = x_pos - mu
-                y = diff @ L_inv.T
-                # this actual computation of inverse once and then use multiplication is feasible because of njit.
-                # otherwise we would have used solve.
-                w = np.sum(y**2, axis=1)   # = diff^T Sigma^{-1} diff
-
-                log_density = log_norm_const - 0.5 * w
+            def _gauss_single(r_batch,theta):
+                v=theta@L_inv.T
+                u=mu@L_inv.T
+                A = np.sum(v**2)
+                B = -2.0 * np.sum(v * u)
+                C = np.sum(u**2)
                 
-                log_volume = (dimension - 1) * np.log(r_batch+1e-10)
+                # 2. Evaluate the grid using fast 1D arrays (no d-dimensional matrices)
+                # Numba vectorizes this brilliantly without massive allocations.
+                w = A * (r_batch**2) + B * r_batch + C
+                
+                log_density = log_norm_const - 0.5 * w
+                log_volume = (dimension - 1) * np.log(r_batch + 1e-10)
+                
+                return log_volume + log_density
 
-                # result=np.exp(log_volume + log_density)
-                return log_volume+log_density
+
+            @njit(parallel=True)
+            def _gauss_multi(r_batch,theta_batch):
+                N = r_batch.shape[0]
+                result = np.empty(N)
+            
+                for i in prange(N):
+                    r = r_batch[i]
+                    theta = theta_batch[i]
+                    
+                    diff = (r * theta) - mu
+                    y = diff @ L_inv.T 
+                    w = np.sum(y**2)
+                        
+                    log_density = log_norm_const - 0.5 * w
+                    log_volume = (dimension - 1) * np.log(r + 1e-10)
+                    
+                    result[i] = log_volume + log_density
+                    
+                return result
+            
+            @njit 
+            def f_r_gauss(r_batch,theta_batch):
+                if theta_batch.ndim==1 or (theta_batch.ndim==2 and theta_batch.shape[0]==1):
+                    theta_1d=theta_batch.ravel()
+                    return _gauss_single(r_batch,theta_1d)
+                else:
+                    return _gauss_multi(r_batch,theta_batch)
+            # def f_r_gauss(r_batch,theta_batch):
+            #     x_pos=r_batch.reshape(-1,1)*theta_batch # (N,d)
+            #     # works fine for both many theta-one r case and one theta-many r case.
+            #
+            #     diff = x_pos - mu
+            #     y = diff @ L_inv.T
+            #     # this actual computation of inverse once and then use multiplication is feasible because of njit.
+            # # otherwise we would have used solve.
+            #     w = np.sum(y**2, axis=1)   # = diff^T Sigma^{-1} diff
+            #
+            #     log_density = log_norm_const - 0.5 * w
+            #
+            #     log_volume = (dimension - 1) * np.log(r_batch+1e-10)
+            #
+            #     # result=np.exp(log_volume + log_density)
+            #     return log_volume+log_density
             #
             # def f_r_gauss(r, theta_batch): 
             #     # here r is distance from origin not directional vector.
