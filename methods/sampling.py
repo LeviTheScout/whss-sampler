@@ -29,7 +29,65 @@ class Samples:
 
 
 class sampling:
-    def sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
+    
+   
+    def _sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
+        rng=np.random.default_rng()
+        t_main=time.perf_counter()
+        def _batch_sampling_uniform():
+            top_mass_theta,top_orthants,top_masses=[],[],[]
+            maximums_log=[]
+            running_mean,running_variance,n=0,0,0
+            possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),log_f_max=np.array([]),sample_log_density=np.array([]))
+            
+            for _ in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
+                theta_batch=self.theta_generation(batch_size)
+                R_batch=self.R(theta_batch)
+                a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                sampled_r_batch=np.random.uniform(a_batch,b_batch)
+                density_vals=density(sampled_r_batch,theta_batch)
+            return
+
+        def _batch_sampling_orthant():
+            top_mass_theta,top_orthants,top_masses=[],[],[]
+            maximums_log=[]
+            running_mean,running_variance,n=0,0,0
+            possible_samples=Samples(u=np.array([]),theta=np.empty((0,self.d)),r_batch=np.array([]),log_f_max=np.array([]),sample_log_density=np.array([]))
+            for _ in range(np.maximum(round(no_samples/batch_size)+round((no_samples/self.k)*alpha),1)):
+            return
+
+
+        with tqdm(total=self.k,unit=' accepted samples ') as pbar:
+            previous=0
+
+            accepted,rejected,emperical_log_f_max, top_m_orthants,top_m_theta, top_masses=_batch_sampling_uniform(self.k+round(self.k*alpha))
+            accepted_count=len(accepted.u)
+            pbar.update(accepted_count)
+            rejected_count=len(rejected.u)
+            
+            acceptance_ratio=accepted_count/(accepted_count+rejected_count)
+            print(acceptance_ratio,'acceptance_ratio',thresh_acceptance)
+            if acceptance_ratio < thresh_acceptance:
+                importance_theta=True
+            while (self.k-accepted_count)>0:
+                
+                remaining=self.k-accepted_count
+                new_batch_size=remaining+round(remaining*alpha)
+                if importance_theta:
+                    new_acc,new_reject,new_emp_log_f_max,importance_orthants,importance_mass=_batch_sampling_orthant(no_samples=new_batch_size,theta_sampling=theta_sampling,importance_directions=importance_directions,
+                                                              importance_orthants=importance_orthants,importance_mass=importance_mass,first=False,old_log_f_max=emperical_log_f_max)
+                else:
+                    new_acc,new_reject,new_emp_log_f_max,importance_orthants,importance_mass=_batch_sampling_uniform(no_samples=new_batch_size,theta_sampling=theta_sampling,importance_directions=importance_directions,
+                                                              importance_orthants=importance_orthants,importance_mass=importance_mass,first=False,old_log_f_max=emperical_log_f_max)
+                
+                if new_emp_log_f_max<=emperical_log_f_max:
+
+                else:
+                    
+            return
+
+
+    def _sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
 
         """
         alpha: if we want k samples, we will check k+alpha%k samples. eg: alpha=0.01
@@ -60,36 +118,27 @@ class sampling:
                     # will do rejection sampling on orthants to choose one for each batch.
                     selected=False
                     number_of_orthants=len(importance_orthants)
-                    max_prob=importance_mass[0]
-                    # print(len(importance_orthants))  
+                    max_mass=np.max(importance_mass)
                     while not selected:
                         index=rng.integers(number_of_orthants-1)
-                        selected= max_prob*(rng.uniform(0,1))<=importance_mass[index]
+                        selected= max_mass*(rng.uniform(0,1))<=importance_mass[index]
                         if selected:
                             theta_batch=self.orthant_theta_generator(importance_orthants[index],batch_size)
-                            # print(importance_mass)
                             R_batch=self.R(theta_batch)
                             a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
-                            new_orthant_avg_mass=np.average(total_mass_batch)
                             sampled_r_batch=np.random.uniform(a_batch,b_batch)
-                            #dividing density with mass of that orthant, aka the bias mitigation step.
                             density_vals=density(sampled_r_batch,theta_batch)-np.log(importance_mass[index])
-                            importance_mass[index]=new_orthant_avg_mass
+                            
+                            new_orthant_mass=np.max(log_f_max_batch)
+                            if new_orthant_mass>=importance_mass[index]:
+                                importance_mass[index]=new_orthant_mass
+
+                            #dividing density with mass of that orthant, aka the bias mitigation step.
                 else:
-                    t0=time.perf_counter()
                     theta_batch=self.theta_generation(batch_size)
                     R_batch=self.R(theta_batch)
-                    t1=time.perf_counter()
-                    # print(t1-t0,'theta')
-                    # theta_dummy=self.theta_generation(1)
-            
-                    # _dummy,_2,_3,_4=self.importance_r(density,self.R(theta_dummy),theta_dummy)
-                    t2=time.perf_counter()
-                    # print(t2-t1,'dummy')
                     a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                 #use this total_mass_batch for the running mean and variance calculation.
-                    t3=time.perf_counter()
-                    # print(t3-t2,'importance_r') 
                     sampled_r_batch=np.random.uniform(a_batch,b_batch)
                     density_vals=density(sampled_r_batch,theta_batch)
                     
@@ -97,9 +146,6 @@ class sampling:
                 batch_samples=Samples(u=u_batch,theta=theta_batch,r_batch=sampled_r_batch,log_f_max=log_f_max_batch,sample_log_density=density_vals)
                 possible_samples.extend(batch_samples)
                 maximums_log.append(np.max(log_f_max_batch))
-                print(np.max(log_f_max_batch))
-                print(np.max(maximums_log),'array')
-                #for importance in theta
                 if first:
                     #update running_mean and variance here.
                     m=len(total_mass_batch)
@@ -110,28 +156,29 @@ class sampling:
                     top_mass_theta.extend(top_m_theta_batch)
                     top_masses.extend(top_m_mass_batch)
                     top_orthants.extend(top_m_orthants_batch)
-                    # print(len(top_m_orthants_batch))
-                    # print(len(top_orthants))
-                    # print(top_m_theta_batch,top_m_mass_batch)
             
             emperical_log_f_max=np.max(np.array(maximums_log))
-            print('test')
+            
             if old_log_f_max is not None and emperical_log_f_max <= old_log_f_max:
-                print(emperical_log_f_max,'loacal oneee')
                 print(np.max(np.array(maximums_log)))
                 emperical_log_f_max=old_log_f_max
                 
-            mask1 = possible_samples.log_f_max+possible_samples.u<possible_samples.sample_log_density
-            accepted_temp=possible_samples.filter(mask1)
-            rejected=possible_samples.filter(~mask1)
-            u2=np.log(np.random.uniform(0,1,len(accepted_temp.log_f_max)))
-            mask2=u2<accepted_temp.log_f_max - emperical_log_f_max
-            print(np.sum(mask2),len(accepted_temp.u),np.sum(mask1),len(rejected.u),len(possible_samples.u),'mask2')     
-            accepted=accepted_temp.filter(mask2)
-            rejected_temp=accepted_temp.filter(~mask2)
+            if theta_sampling:
+               mask= possible_samples.u<possible_samples.sample_log_density
+               accepted=possible_samples.filter(mask)
+               rejected=possible_samples.filter(~mask)
+            else:
+                
+                mask1 = possible_samples.log_f_max+possible_samples.u<possible_samples.sample_log_density
+                accepted_temp=possible_samples.filter(mask1)
+                rejected=possible_samples.filter(~mask1)
+                u2=np.log(np.random.uniform(0,1,len(accepted_temp.log_f_max)))
+                mask2=u2<accepted_temp.log_f_max - emperical_log_f_max
+                print(np.sum(mask2),len(accepted_temp.u),np.sum(mask1),len(rejected.u),len(possible_samples.u),'mask2')     
+                accepted=accepted_temp.filter(mask2)
+                rejected_temp=accepted_temp.filter(~mask2)
 
-            rejected.extend(rejected_temp)
-            # print(len(accepted.u),len(rejected.u)) 
+                rejected.extend(rejected_temp)
              
             # will have to check again for away directions before adding to the global list.
             if first:
@@ -149,7 +196,6 @@ class sampling:
             previous=0
 
             accepted,rejected,emperical_log_f_max, top_m_orthants,top_m_theta, top_masses=batch_sampling(self.k+round(self.k*alpha),first=True)
-            # print(emperical_log_f_max) 
             accepted_count=len(accepted.u)
             pbar.update(accepted_count)
             rejected_count=len(rejected.u)
@@ -176,7 +222,7 @@ class sampling:
                                                               importance_orthants=importance_orthants,importance_mass=importance_mass,first=False,old_log_f_max=emperical_log_f_max)
                 print(emperical_log_f_max,new_emp_log_f_max)
                 if new_emp_log_f_max<=emperical_log_f_max:
-                    # print('old f_max')
+                    
                     u=new_acc.u
                     den=new_acc.sample_log_density
                     mask= emperical_log_f_max+np.array(u)<np.array(den)
