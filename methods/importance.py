@@ -53,40 +53,42 @@ def importance_r_numba(log_g_r, R_batch, theta_batch,grid_size=100000, percentag
 class importance_sampling:
 
 
-    def away_thetas_batch(self,theta_batch,mass_batch,thresh_angle,tau,batch,orthants_batch=None,global_mean=None):
+    def away_thetas_batch(self,theta_batch,weights,tau,batch,orthants_batch=None):
         """
         Returns directions from theta_batch that are aprat enough and are top-m based on the mass.
         maybe can be made such that takes threshold angle as param. and 
         check that across whole batch and decides which to keep and which not to.
         theta_batch: [[theta1],[theta2].....]
-        mass_batch: [m1,m2,.....]
+        weights: [w1,w2,.....]
         tau: minimum fraction of m1 (maximum mass) each direction need to have.
         thresh_angle: decides the threshold of how big angle between two selected directions should be.
+        Keeps one representative per orthant, choosing the representative with the largest weight in that orthant, 
+        and returns all retained representatives ordered from highest weight to lowest weight.
         """
-
-        sorted_mass_indices=np.argsort(mass_batch)[::-1]
+# make sure this are working as intended, corrected a bug.
+        sorted_weight_indices=np.argsort(weights)[::-1]
         if batch:
             orthant_ids=self.get_orthant(theta_batch)
-            sorted_orthant_ids=orthant_ids[sorted_mass_indices]
-            _, unique_sorted_orthant_indices=np.unique(sorted_orthant_ids, return_index=True,axis=0)
-            sorted_orthants=orthant_ids[unique_sorted_orthant_indices]
-            masses_new=mass_batch[unique_sorted_orthant_indices]
-            thetas_new=theta_batch[unique_sorted_orthant_indices]
+            sorted_orthant_ids=orthant_ids[sorted_weight_indices]
+            _, first_ocurrances=np.unique(sorted_orthant_ids, return_index=True,axis=0)
+            first_ocurrances=np.sort(first_ocurrances)
+            selected_indices=sorted_weight_indices[first_ocurrances]
+            sorted_orthants=orthant_ids[selected_indices]
+            weights_new=weights[selected_indices]
+            thetas_new=theta_batch[selected_indices]
             #makes sure that higher mass is kept when there is clash of two directions in same orthant.
-            return sorted_orthants,thetas_new,masses_new
+            return sorted_orthants,thetas_new,weights_new
         else:
             # input: top masees batch wise for orthants.
             # select top mass based on orthant. and assign it as mass of that orthatnt.
             # return: all orthatns in desceneding order of mass along with its maximum mass.
-            orderd=orthants_batch[sorted_mass_indices]
+            orderd=orthants_batch[sorted_weight_indices]
             _,idx=np.unique(orderd,return_index=True,axis=0)
             idx=np.sort(idx)
             orthants_descending=orderd[idx]
-            masses_descending=mass_batch[sorted_mass_indices][idx]
-            theta_descending=theta_batch[sorted_mass_indices][idx]
-            # print(np.unpackbits(orthants_descending,axis=1),masses_descending)
-            # print(mass_batch[sorted_mass_indices])
-            return orthants_descending,theta_descending,masses_descending
+            weights_descending=weights[sorted_weight_indices][idx]
+            theta_descending=theta_batch[sorted_weight_indices][idx]
+            return orthants_descending,theta_descending,weights_descending
          
     
     def importance_r(self,density,R_batch,theta_batch):

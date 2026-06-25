@@ -128,8 +128,8 @@ class nsmc_sampling_gaussian(nsmc_sampling):
     def get_samples(self,batch_size=None):
         gauss_den=self.f_r_gaussian()
         if batch_size is None:
-            accepted,rejected=self.sampling_f_r_new(gauss_den)
+            accepted,rejected=self._sampling_f_r_new(gauss_den)
         else:
 
-            accepted,rejected=self.sampling_f_r_new(gauss_den,batch_size)
+            accepted,rejected=self._sampling_f_r_new(gauss_den,batch_size)
         return accepted,rejected
