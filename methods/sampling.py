@@ -117,7 +117,7 @@ class sampling:
                         a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
                         sampled_r_batch=np.random.uniform(a_batch,b_batch)
                         density_vals=density(sampled_r_batch,theta_batch)-importance_weights[index]
-                        
+                        print(np.unpackbits(importance_orthants[index])) 
                         # change here if we change weight to something else.
                         current_orthant_weight=np.max(log_f_max_batch)
                         if current_orthant_weight>=importance_weights[index]:
@@ -130,7 +130,7 @@ class sampling:
                 mask= batch_samples.u <= batch_samples.sample_log_density
                 accepted.extend(batch_samples.filter(mask))
                 rejected.extend(batch_samples.filter(~mask))
-                
+                print(rejected.length(),accepted.length()) 
                 maximums_log.append(np.max(log_f_max_batch))
                 
                 
