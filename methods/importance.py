@@ -7,48 +7,177 @@ from numba import njit,prange
 from sambal import random_on_cap
 from joblib import Parallel,delayed
 from scipy.optimize import direct, minimize_scalar
+@njit
+def find_peak_golden_section(user_log_g_r, theta, R_max, tol=1e-6):
+    """
+    Finds the exact r that maximizes log_g_r along a specific theta ray.
+    Uses Golden-Section search for O(log N) speed and zero memory allocation.
+    """
+    invphi = (np.sqrt(5) - 1) / 2  
+    invphi2 = (3 - np.sqrt(5)) / 2 
+
+    a, b = 1e-10, R_max
+    h = b - a
+    if h <= tol: 
+        return (a + b) / 2.0
+
+    n = int(np.ceil(np.log(tol / h) / np.log(invphi)))
+
+    c = a + invphi2 * h
+    d = a + invphi * h
+    yc = user_log_g_r(c, theta)
+    yd = user_log_g_r(d, theta)
+
+    for _ in range(n):
+        if yc > yd:
+            b = d
+            d = c
+            yd = yc
+            h = invphi * h
+            c = a + invphi2 * h
+            yc = user_log_g_r(c, theta)
+        else:
+            a = c
+            c = d
+            yc = yd
+            h = invphi * h
+            d = a + invphi * h
+            yd = user_log_g_r(d, theta)
+
+    return (a + b) / 2.0
+
+# =====================================================================
+# 2. THE MAIN ENGINE (Parallelized, Memory-Safe, High-Precision)
+# =====================================================================
+
 
 @njit(parallel=True)
-def importance_r_numba(log_g_r, R_batch, theta_batch,grid_size=100000, percentage_mass=0.99):
-    '''
-    This finds interval [a,b] for given directions thetas such that this smaller region
-    has percentage_mass*total area under the curve of g_r function from [0,R_] support.
-    '''
-    batch_size=len(R_batch)
-    a_vals,b_vals,log_f_max_batch,total_mass_batch=np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size)
-    
+def importance_r_numba(user_log_g_r, R_batch, theta_batch, grid_size_fine=5000, percentage_mass=0.99):
+    batch_size = len(R_batch)
+    a_vals = np.zeros(batch_size)
+    b_vals = np.zeros(batch_size)
+    log_f_max_batch = np.zeros(batch_size)
+    total_mass_batch = np.zeros(batch_size)
+
+    eps = 1e-10
+    drop_threshold = 20.0
+
     for i in prange(batch_size):
-        R_,theta=R_batch[i],theta_batch[i]
-        r_grid= np.linspace(0,R_,grid_size)
-        log_g_r_grid=log_g_r(r_grid,theta) # will have to fix this function.
-        dr=R_/(grid_size-1)  #no_gaps = points-1
+        R_ = R_batch[i]
+        theta = theta_batch[i]
 
-        arg_max=np.argmax(log_g_r_grid)
-        local_log_f_max=log_g_r_grid[arg_max]
-        
-        prob_dens=np.exp(log_g_r_grid - local_log_f_max) #subtracting max makes sure peak sits at 0 --exp(0)=1, eveything else less than 1.
-        cdf=np.cumsum(prob_dens)*dr  #area=length*bredth , making it sum to 1 by multiplying it with dr.
+        # --- PHASE 1: Pinpoint the Peak ---
+        exact_peak_r = find_peak_golden_section(user_log_g_r, theta, R_)
+        peak_log_val = user_log_g_r(exact_peak_r, theta)
 
-        log_total_mass=np.log(cdf[-1]+1e-100)+local_log_f_max # we subtracted f_max, getting it back in log space.
-        target_mass=percentage_mass*cdf[-1]
+        # --- PHASE 2: Dynamic Bounding (Bisection) ---
+        # 2a. Left boundary
+        if exact_peak_r <= eps or user_log_g_r(eps, theta) >= peak_log_val - drop_threshold:
+            r_start = eps
+        else:
+            low, high = eps, exact_peak_r
+            for _ in range(30):
+                mid = (low + high) / 2.0
+                if user_log_g_r(mid, theta) >= peak_log_val - drop_threshold:
+                    high = mid
+                else:
+                    low = mid
+            r_start = low
 
-        a,b=0.0,R_
-        min_width=R_
-        left=0
+        # 2b. Right boundary
+        if exact_peak_r >= R_ or user_log_g_r(R_, theta) >= peak_log_val - drop_threshold:
+            r_end = R_
+        else:
+            low, high = exact_peak_r, R_
+            for _ in range(30):
+                mid = (low + high) / 2.0
+                if user_log_g_r(mid, theta) >= peak_log_val - drop_threshold:
+                    low = mid
+                else:
+                    high = mid
+            r_end = high
 
-        for right in range(grid_size):
-            while cdf[right]-cdf[left]>=target_mass:
-                current_width=r_grid[right]-r_grid[left]
-                if current_width<=min_width:
-                    min_width=current_width
-                    a,b=r_grid[left],r_grid[right]
-                left+=1
-        a_vals[i]=a
-        b_vals[i]=b
-        log_f_max_batch[i]=local_log_f_max
-        total_mass_batch[i]=np.exp(log_total_mass)
-        
-    return a_vals,b_vals,log_f_max_batch,total_mass_batch
+        # --- PHASE 3: Integration & CDF ---
+        fine_grid = np.linspace(r_start, r_end, grid_size_fine)
+        log_g_r_grid = np.empty(grid_size_fine)
+
+        local_log_f_max = -np.inf
+        for j in range(grid_size_fine):
+            val = user_log_g_r(fine_grid[j], theta)
+            log_g_r_grid[j] = val
+            if val > local_log_f_max:
+                local_log_f_max = val
+
+        dr = (r_end - r_start) / (grid_size_fine - 1)
+        cdf = np.empty(grid_size_fine)
+        current_sum = 0.0
+        for j in range(grid_size_fine):
+            current_sum += np.exp(log_g_r_grid[j] - local_log_f_max) * dr
+            cdf[j] = current_sum
+
+        log_total_mass = np.log(current_sum + 1e-100) + local_log_f_max
+        target_mass = percentage_mass * current_sum
+
+        # --- PHASE 4: The Sliding Window ---
+        # Default now matches the search domain, not the full [0, R_]
+        a, b = r_start, r_end
+        min_width = r_end - r_start
+        left = 0
+        for right in range(grid_size_fine):
+            while cdf[right] - cdf[left] >= target_mass:
+                current_width = fine_grid[right] - fine_grid[left]
+                if current_width <= min_width:
+                    min_width = current_width
+                    a, b = fine_grid[left], fine_grid[right]
+                left += 1
+
+        a_vals[i] = a
+        b_vals[i] = b
+        log_f_max_batch[i] = local_log_f_max
+        total_mass_batch[i] = np.exp(log_total_mass)
+
+    return a_vals, b_vals, log_f_max_batch, total_mass_batch
+# @njit(parallel=True)
+# def importance_r_numba(log_g_r, R_batch, theta_batch,grid_size=100000, percentage_mass=0.99):
+#     '''
+#     This finds interval [a,b] for given directions thetas such that this smaller region
+#     has percentage_mass*total area under the curve of g_r function from [0,R_] support.
+#     '''
+#     batch_size=len(R_batch)
+#     a_vals,b_vals,log_f_max_batch,total_mass_batch=np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size),np.zeros(batch_size)
+#     #d=len(theta_batch[0])
+#     for i in prange(batch_size):
+#         R_,theta=R_batch[i],theta_batch[i]
+#         r_grid= np.linspace(0,R_,grid_size)
+#         log_g_r_grid=log_g_r(r_grid,theta) #+ (d - 1) * np.log(r_grid)# will have to fix this function.
+#         dr=R_/(grid_size-1)  #no_gaps = points-1
+#
+#         arg_max=np.argmax(log_g_r_grid)
+#         local_log_f_max=log_g_r_grid[arg_max]
+#
+#         prob_dens=np.exp(log_g_r_grid - local_log_f_max) #subtracting max makes sure peak sits at 0 --exp(0)=1, eveything else less than 1.
+#         cdf=np.cumsum(prob_dens)*dr  #area=length*bredth , making it sum to 1 by multiplying it with dr.
+#
+#         log_total_mass=np.log(cdf[-1]+1e-100)+local_log_f_max # we subtracted f_max, getting it back in log space.
+#         target_mass=percentage_mass*cdf[-1]
+#
+#         a,b=0.0,R_
+#         min_width=R_
+#         left=0
+#
+#         for right in range(grid_size):
+#             while cdf[right]-cdf[left]>=target_mass:
+#                 current_width=r_grid[right]-r_grid[left]
+#                 if current_width<=min_width:
+#                     min_width=current_width
+#                     a,b=r_grid[left],r_grid[right]
+#                 left+=1
+#         a_vals[i]=a
+#         b_vals[i]=b
+#         log_f_max_batch[i]=local_log_f_max
+#         total_mass_batch[i]=np.exp(log_total_mass)
+#
+#     return a_vals,b_vals,log_f_max_batch,total_mass_batch
 
 class importance_sampling:
 

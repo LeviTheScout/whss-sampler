@@ -60,7 +60,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
                 log_density = log_norm_const - 0.5 * w
                 log_volume = (dimension - 1) * np.log(r_batch + 1e-10)
                 
-                return log_volume + log_density
+                return log_density + log_volume
 
 
             @njit(parallel=True)

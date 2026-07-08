@@ -39,7 +39,8 @@ class sampling:
     def _sampling_f_r_new(self,density,batch_size=256,alpha=0.1,thresh_acceptance=0.1,angle_importance=np.pi/10,tau=0.01):
         rng=np.random.default_rng()
         t_main=time.perf_counter()
-
+        
+        batch_size=self.k+200
 
         def _batch_sampling_uniform(no_samples, first, importance_orthants= None, importance_weights= None, old_log_f_max= None):
             top_theta,top_orthants,top_weights=[],[],[]
@@ -50,6 +51,9 @@ class sampling:
                 theta_batch=self.theta_generation(batch_size)
                 R_batch=self.R(theta_batch)
                 a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                # NEW WAY: Proposing proportional to r^(d-1) volume scaling
+                # u = np.random.uniform(0, 1, len(a_batch))
+                # sampled_r_batch = (a_batch**self.d + u * (b_batch**self.d - a_batch**self.d))**(1/self.d)
                 sampled_r_batch=np.random.uniform(a_batch,b_batch)
                 density_vals=density(sampled_r_batch,theta_batch)
 
@@ -115,6 +119,8 @@ class sampling:
                         theta_batch=self.orthant_theta_generator(importance_orthants[index],batch_size)
                         R_batch=self.R(theta_batch)
                         a_batch,b_batch,log_f_max_batch,total_mass_batch=self.importance_r(density,R_batch,theta_batch)
+                        # u = np.random.uniform(0, 1, len(a_batch))
+                        # sampled_r_batch = (a_batch**self.d + u * (b_batch**self.d - a_batch**self.d))**(1/self.d)
                         sampled_r_batch=np.random.uniform(a_batch,b_batch)
                         density_vals=density(sampled_r_batch,theta_batch)-importance_weights[index]
                         # print(np.unpackbits(importance_orthants[index])) 
@@ -143,12 +149,12 @@ class sampling:
             return accepted,rejected, new_emp_log_f_max, importance_orthants, importance_weights
 
 
-        with tqdm(total=self.k,unit=' accepted samples ',disable=True) as pbar:
+        with tqdm(total=self.k,unit=' accepted samples ',disable=False) as pbar:
             previous=0
             importance_theta=False
             accepted,rejected,emperical_log_f_max, importance_orthants,top_m_theta, importance_weights=_batch_sampling_uniform(self.k+round(self.k*alpha), first=True)
             accepted_count=len(accepted.u)
-            # pbar.update(accepted.length())
+            pbar.update(accepted.length())
             rejected_count=len(rejected.u)
             
             acceptance_ratio=accepted_count/(accepted_count+rejected_count)
@@ -183,7 +189,7 @@ class sampling:
                     
                     
                 accepted_count=len(accepted.u)
-                # pbar.update(accepted_count-previous)
+                pbar.update(accepted_count-previous)
                 previous=accepted_count
                 # print(len(accepted.theta))
             ans_accepted=list(zip(accepted.theta,accepted.r_batch))
@@ -191,7 +197,7 @@ class sampling:
         # print('Done!')
         t_main_end=time.perf_counter()
         # print(t_main_end-t_main,'whole','--samples per second--',len(ans_accepted)+len(ans_rejected)/(t_main_end-t_main))
-        # return ans_accepted,ans_rejected
+        return ans_accepted,ans_rejected
         
         return t_main_end-t_main, len(ans_rejected)
 
