@@ -79,7 +79,7 @@ class nsmc_sampling_gaussian(nsmc_sampling):
                     log_density = log_norm_const - 0.5 * w
                     log_volume = (dimension - 1) * np.log(r + 1e-10)
                     
-                    result[i] = log_volume + log_density
+                    result[i] = log_density  +log_volume
                     
                 return result
             
@@ -133,3 +133,9 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
             accepted,rejected=self._sampling_f_r_new(gauss_den,batch_size)
         return accepted,rejected
+
+    def ksd_distance(self,accepted):
+        gauss_den=self.f_r_gaussian()
+        distance=self.ksd(accepted,gauss_den)
+        return distance
+
