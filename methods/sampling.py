@@ -159,7 +159,7 @@ class sampling:
             acceptance_ratio=accepted_count/(accepted_count+rejected_count)
             # print(acceptance_ratio,'acceptance_ratio',thresh_acceptance)
             if acceptance_ratio < thresh_acceptance:
-                # importance_theta=True
+                importance_theta=True
                 print('switching to importance_orthants!')
             while (self.k-accepted_count)>0:
                 
