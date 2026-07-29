@@ -53,10 +53,11 @@ class utilities:
         #check orthants of two points using np.array_equal(id_a,id_b)
         return orthant_ids
         
-        
+
+
     def x_y_view(self, accepted):
         """
-        This function visualizes the 2D projection of samples generated in
+        Visualizes the 2D projection of samples generated in
         d-dimensional Cartesian directional form.
 
         Parameters:
@@ -64,32 +65,39 @@ class utilities:
                 a : unit direction vector (array-like of length d)
                 r : radial distance
         """
+        if not accepted:
+            print("No accepted samples to plot.")
+            return
 
-        x_accepted, y_accepted = [], []
+        # 1. Extract all direction vectors and radii efficiently
+        # directions shape will be (N, d) and radii shape will be (N,)
+        directions = np.array([item[0] for item in accepted]) 
+        radii = np.array([item[1] for item in accepted])
 
-        for i in accepted:
-            a=np.array([accepted[i][0][:2] for i in range(len(accepted))])
-            r=np.array([accepted[i][-1] for i in range(len(accepted))]) 
-            
-            corrdinates=r[:,None] * a
-            x_accepted.append(corrdinates[:,0])
-            y_accepted.append(corrdinates[:,-1])
-            
-            # if len(a) > 1:
-            #     y_accepted.append(r * a[1])
-            # else:
-            #     y_accepted.append(0)
+        # 2. Slice the first two dimensions for the 2D projection
+        a_2d = directions[:, :2] # Shape (N, 2)
 
-        # is this correct projection corrdinates?
+        # 3. Calculate X and Y coordinates 
+        # radii[:, None] turns shape (N,) into (N, 1) for broadcasting
+        coordinates = radii[:, None] * a_2d 
+        x_accepted = coordinates[:, 0]
+        y_accepted = coordinates[:, 1]
+
+        # 4. Plotting
         plt.figure(figsize=(8, 8))
-        plt.plot([-(self.a/2), (self.a/2), (self.a/2), -(self.a/2), -(self.a/2)], [-(self.a/2), -(self.a/2), (self.a/2), (self.a/2), -(self.a/2)], color='black', lw=2)
-        r_boundary = self.a 
+        
+        # Bounding box (assuming self.a represents the side length)
+        plt.plot([-(self.a/2), (self.a/2), (self.a/2), -(self.a/2), -(self.a/2)], 
+                [-(self.a/2), -(self.a/2), (self.a/2), (self.a/2), -(self.a/2)], 
+                color='black', lw=2)
 
-
-        plt.scatter(x_accepted, y_accepted, color='green', s=10 )
+        # Plot the projected points
+        plt.scatter(x_accepted, y_accepted, color='green', s=10)
+        
+        # Format axes
         plt.gca().set_aspect('equal')
         plt.axhline(0, color='black', linewidth=0.5)
         plt.axvline(0, color='black', linewidth=0.5)
-        plt.title("Projection of d-dimsional Samples onto 2D Plane")
+        plt.title("Projection of d-dimensional Samples onto 2D Plane")
+        
         plt.show()
-        return
