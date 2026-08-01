@@ -90,38 +90,6 @@ class nsmc_sampling_gaussian(nsmc_sampling):
                     return _gauss_single(r_batch,theta_1d)
                 else:
                     return _gauss_multi(r_batch,theta_batch)
-            # def f_r_gauss(r_batch,theta_batch):
-            #     x_pos=r_batch.reshape(-1,1)*theta_batch # (N,d)
-            #     # works fine for both many theta-one r case and one theta-many r case.
-            #
-            #     diff = x_pos - mu
-            #     y = diff @ L_inv.T
-            #     # this actual computation of inverse once and then use multiplication is feasible because of njit.
-            # # otherwise we would have used solve.
-            #     w = np.sum(y**2, axis=1)   # = diff^T Sigma^{-1} diff
-            #
-            #     log_density = log_norm_const - 0.5 * w
-            #
-            #     log_volume = (dimension - 1) * np.log(r_batch+1e-10)
-            #
-            #     # result=np.exp(log_volume + log_density)
-            #     return log_volume+log_density
-            #
-            # def f_r_gauss(r, theta_batch): 
-            #     # here r is distance from origin not directional vector.
-            #     # r will be a (batch_size,) dim vector and theta_batch will be (batch_size,d) dim matrix
-            #     # hence each row of theta_batch will be one sample
-            #     r = np.atleast_1d(r)
-            #
-            #     theta_batch = np.asarray(theta_batch)
-            #     if theta_batch.ndim == 1:
-            #         theta_batch = theta_batch[None, :]   # (1, d)
-            #
-            #
-            #     x_pos = r[:,None]*theta_batch
-            #     if result.shape[0]==1:
-            #         return result[0]
-            #     return result            
 
             return f_r_gauss
 

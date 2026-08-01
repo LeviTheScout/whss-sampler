@@ -83,13 +83,22 @@ class sampling:
             mask1 = possible_samples.log_f_max+possible_samples.u < possible_samples.sample_log_density
             accepted_temp=possible_samples.filter(mask1)
             rejected=possible_samples.filter(~mask1)
+
+
             u2=np.log(np.random.uniform(0,1,len(accepted_temp.log_f_max)))
             mask2= u2 < accepted_temp.log_f_max - new_emp_log_f_max
-            # print(np.sum(mask2),len(accepted_temp.u),np.sum(mask1),len(rejected.u),len(possible_samples.u),'mask2')     
             accepted=accepted_temp.filter(mask2)
             rejected_temp=accepted_temp.filter(~mask2)
             rejected.extend(rejected_temp)
             
+
+
+
+            # change accepted_temp to accepted
+            # change accepted_temp to accepted
+            # change accepted_temp to accepted
+            # change accepted_temp to accepted
+            # change accepted_temp to accepted
             if first:
                 top_m_orthants,top_m_theta, corresponding_weights=self.away_thetas_batch(np.array(top_theta),np.array(top_weights),tau,orthants_batch=np.array(top_orthants),batch=False)
                 return accepted,rejected,new_emp_log_f_max,top_m_orthants,top_m_theta,corresponding_weights
@@ -155,11 +164,10 @@ class sampling:
             accepted_count=len(accepted.u)
             pbar.update(accepted.length())
             rejected_count=len(rejected.u)
-            
             acceptance_ratio=accepted_count/(accepted_count+rejected_count)
             # print(acceptance_ratio,'acceptance_ratio',thresh_acceptance)
             if acceptance_ratio < thresh_acceptance:
-                importance_theta=True
+                # importance_theta=True
                 print('switching to importance_orthants!')
             while (self.k-accepted_count)>0:
                 
