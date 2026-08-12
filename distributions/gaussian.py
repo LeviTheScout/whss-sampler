@@ -93,14 +93,19 @@ class nsmc_sampling_gaussian(nsmc_sampling):
 
             return f_r_gauss
 
-    def get_samples(self,batch_size=None):
-        gauss_den=self.f_r_gaussian()
-        if batch_size is None:
-            accepted,rejected=self._sampling_f_r_new(gauss_den)
-        else:
-
-            accepted,rejected=self._sampling_f_r_new(gauss_den,batch_size)
-        return accepted,rejected
+    def get_samples(self, batch_size=3256, fallback_proposer="vmf", switch_threshold=0.05, burn_in_samples=None, max_anchors=50):
+        
+        target_density = self.f_r_gaussian()
+        
+        accepted, rejected = self._sampling_universal(
+            density=target_density,
+            batch_size=batch_size,
+            fallback_proposer=fallback_proposer,
+            switch_threshold=switch_threshold,
+            burn_in_samples=burn_in_samples,
+            max_anchors=max_anchors
+        )
+        return accepted, rejected
 
     def ksd_distance(self,accepted):
         gauss_den=self.f_r_gaussian()

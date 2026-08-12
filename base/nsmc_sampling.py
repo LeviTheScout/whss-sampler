@@ -2,6 +2,8 @@ from ..methods.sampling import sampling
 from ..methods.importance import importance_sampling
 from ..methods.utility import utilities
 from ..methods.convergence import convergence
+from ..methods.proposal import BaseProposer
+
 class nsmc_sampling(sampling, importance_sampling, utilities,convergence):
     """
     Parent class to generalise the nsmc_sampling. It has the general functions used for any sampling density.
