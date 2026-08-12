@@ -101,13 +101,9 @@ def importance_r_numba(user_log_g_r, R_batch, theta_batch, grid_size_fine=5000, 
         fine_grid = np.linspace(r_start, r_end, grid_size_fine)
         log_g_r_grid = np.empty(grid_size_fine)
 
-        local_log_f_max = -np.inf
-        for j in range(grid_size_fine):
-            val = user_log_g_r(fine_grid[j], theta)
-            log_g_r_grid[j] = val
-            if val > local_log_f_max:
-                local_log_f_max = val
-
+        # Pass the entire 1D array of 5,000 points at once
+        log_g_r_grid = user_log_g_r(fine_grid, theta)
+        local_log_f_max = np.max(log_g_r_grid)
         dr = (r_end - r_start) / (grid_size_fine - 1)
         cdf = np.empty(grid_size_fine)
         current_sum = 0.0
