@@ -9,9 +9,23 @@ from scipy.special import logsumexp, ive, loggamma
 # Placed outside the class so Numba can compile them to raw C-code.
 # ==============================================================================
 
+def log_ive(v, z):
+    """
+    Computes log(I_v(z)) safely using scipy.special.ive to prevent underflow crashes.
+    Used by: `update_vmf_parameters` (below) to calculate the vMF normalizing constant.
+    """
+    with np.errstate(divide='ignore', invalid='ignore'):
+        # Enforce a floor of 1e-300 so np.log never evaluates exactly 0.0
+        res = np.log(np.maximum(ive(v, z), 1e-300)) + np.abs(z)
+    return res
+
+
 @njit
 def sample_vmf_numba(mu, kappa, d):
-    """Generates a single vMF ray around center `mu` with tightness `kappa`."""
+    """
+    Generates a single vMF ray around center `mu` with tightness `kappa`.
+    Used by: `parallel_generate_and_evaluate` (below) to generate individual rays.
+    """
     b = (d - 1) / (2 * kappa + np.sqrt(4 * kappa**2 + (d - 1)**2))
     x0 = (1 - b) / (1 + b)
     c = kappa * x0 + (d - 1) * np.log(1 - x0**2)
@@ -40,11 +54,13 @@ def sample_vmf_numba(mu, kappa, d):
         
     return ray
 
+
 @njit
 def compute_log_q_mixture(theta, anchors_mu, log_alpha, kappas, log_C, log_w_vmf, log_w_unif, log_C_unif):
     """
-    Evaluates Mask 2 proposal density efficiently in log-space.
+    Evaluates Mask 2 proposal density (q) efficiently in log-space.
     Bakes in the 10% uniform safety net to mathematically guarantee stability.
+    Used by: `parallel_generate_and_evaluate` (below) to determine ray probabilities.
     """
     K = len(log_alpha)
     # K vMF components + 1 Uniform component
@@ -65,11 +81,13 @@ def compute_log_q_mixture(theta, anchors_mu, log_alpha, kappas, log_C, log_w_vmf
         
     return max_val + np.log(sum_exp)
 
+
 @njit(parallel=True)
 def parallel_generate_and_evaluate(batch_size, d, parent_indices, anchors_mu, log_alpha, kappas, log_C, num_vmf, log_w_vmf, log_w_unif, log_C_unif):
     """
     Massively parallel generation of vMF/Uniform rays and evaluation of q(theta).
     Distributes the workload evenly across all CPU cores.
+    Used by: `vMFProposer.generate_batch` in `proposal.py`.
     """
     theta_batch = np.empty((batch_size, d))
     log_q_batch = np.empty(batch_size)
@@ -92,10 +110,12 @@ def parallel_generate_and_evaluate(batch_size, d, parent_indices, anchors_mu, lo
         
     return theta_batch, log_q_batch
 
-def update_vmf_parameters(anchors_mass, d, kappa_min=2.0, kappa_max=100.0):
+
+def update_vmf_parameters(anchors_mass, d, kappa_min=2.0, kappa_max=15.0):
     """
     SciPy Helper: Turns ray masses into mixture weights, variances, and Bessel constants.
     Also calculates the exact mathematical constant for the uniform sphere.
+    Used by: `vMFProposer.generate_batch` in `proposal.py` just before generating rays.
     """
     log_mass = np.log(anchors_mass + 1e-15)
     
@@ -106,9 +126,9 @@ def update_vmf_parameters(anchors_mass, d, kappa_min=2.0, kappa_max=100.0):
     rel_weights = np.exp(log_mass - np.max(log_mass))
     kappas = kappa_min + (kappa_max - kappa_min) * np.sqrt(rel_weights)
     
-    # 3. Log Normalizing Constants for vMF
+    # 3. Log Normalizing Constants for vMF (USING THE NEW SAFETY WRAPPER)
     v = (d / 2.0) - 1.0
-    log_C = (v * np.log(kappas)) - ((d / 2.0) * np.log(2.0 * np.pi)) - (np.log(ive(v,kappas)) + kappas)
+    log_C = (v * np.log(kappas)) - ((d / 2.0) * np.log(2.0 * np.pi)) - log_ive(v, kappas)
     
     # 4. Log Normalizing Constant for the d-dimensional Uniform Sphere
     # C_unif = Gamma(d/2) / (2 * pi^(d/2))
@@ -116,52 +136,59 @@ def update_vmf_parameters(anchors_mass, d, kappa_min=2.0, kappa_max=100.0):
     
     return log_alpha, kappas, log_C, log_C_unif
 
+
 # ==============================================================================
 # EXISTING UTILITIES CLASS
+# Inherited directly by the `nsmc_sampling` base class for general geometric tasks.
 # ==============================================================================
 
 class utilities:
 
-    def theta_generation(self,batch_size):
+    def theta_generation(self, batch_size):
         """
-        This function generates the vectors of angles in d-dimsion length 
-        being d-1. 
+        Generates random uniform directions on the d-dimensional sphere. 
+        Used by: `nsmc_sampling` legacy functions and testing.
         """
-        samples=np.random.normal(0, 1, (batch_size,self.d))
-        r = np.linalg.norm(samples,axis=1)
-        return samples/r[:,None]
+        samples = np.random.normal(0, 1, (batch_size, self.d))
+        r = np.linalg.norm(samples, axis=1)
+        return samples / r[:, None]
     
-    def orthant_theta_generator(self,orthant_id,batch_size):
+    def orthant_theta_generator(self, orthant_id, batch_size):
         """
-        generate random uniform directions, change signs to match the signs of the orthants exactly. 
+        Generates random uniform directions, changing signs to match specific orthants exactly.
+        Used by: Legacy manual orthant sampling (now largely superseded by proposal.py).
         """
-        batch_size=np.ceil(batch_size).astype(int)
-        original_orthant_id=np.unpackbits(orthant_id)
-        theta_batch=self.theta_generation(batch_size)
-        target_bits=original_orthant_id[:self.d]
-        target_bits=target_bits.astype(int)
-        target_signs=(target_bits*2)-1 
-        orthant_thetas=np.abs(theta_batch)*target_signs
+        batch_size = np.ceil(batch_size).astype(int)
+        original_orthant_id = np.unpackbits(orthant_id)
+        theta_batch = self.theta_generation(batch_size)
+        target_bits = original_orthant_id[:self.d]
+        target_bits = target_bits.astype(int)
+        target_signs = (target_bits * 2) - 1 
+        orthant_thetas = np.abs(theta_batch) * target_signs
         return orthant_thetas 
 
-    def R(self,thetas):
+    def R(self, thetas):
         """
-        Returns the maximum length 'R' along that direcions of the 
-        thetas given in the batch for CUBE of side length a.
+        Returns the maximum length 'R' along given ray directions for a bounding cube of side length a.
+        Used by: `sampling.py` universal loop to bound the 1D search space.
         """
-        inf_norm = np.max(np.abs(thetas),axis=1)
-        R_vec=self.a/(2*inf_norm)
+        inf_norm = np.max(np.abs(thetas), axis=1)
+        R_vec = self.a / (2 * inf_norm)
         return R_vec
 
-    def get_orthant(self,thetas):
-        mask= thetas>=0
-        orthant_ids=np.packbits(mask,axis=1)
+    def get_orthant(self, thetas):
+        """
+        Extracts the bit-packed integer ID of the orthant for given rays.
+        Used by: `utilities` for debugging, or orthant tracker mechanisms.
+        """
+        mask = thetas >= 0
+        orthant_ids = np.packbits(mask, axis=1)
         return orthant_ids
         
     def x_y_view(self, accepted):
         """
-        Visualizes the 2D projection of samples generated in
-        d-dimensional Cartesian directional form.
+        Visualizes the 2D projection of samples generated in d-dimensional Cartesian directional form.
+        Used by: The end user via Jupyter Notebooks or run scripts to verify sample distribution.
         """
         if not accepted:
             print("No accepted samples to plot.")
