@@ -4,6 +4,9 @@ import math
 from numba import njit, prange
 from scipy.special import logsumexp, ive, loggamma
 
+from scipy.linalg import cholesky
+# Import your exact 1D searcher so Numba can link them at C-level
+from .importance import find_peak_golden_section 
 # ==============================================================================
 # PHASE 2 MATH TOOLS (High-Performance Numba & SciPy Functions)
 # Placed outside the class so Numba can compile them to raw C-code.
@@ -97,6 +100,7 @@ def parallel_generate_and_evaluate(batch_size, d, parent_indices, anchors_mu, lo
         # 1. Generate either a vMF ray or a Uniform ray based on the 90/10 split
         if j < num_vmf:
             idx = parent_indices[j]
+            # It already brilliantly uses kappas[idx]!
             theta_batch[j] = sample_vmf_numba(anchors_mu[idx], kappas[idx], d)
         else:
             vec = np.random.randn(d)
@@ -111,27 +115,26 @@ def parallel_generate_and_evaluate(batch_size, d, parent_indices, anchors_mu, lo
     return theta_batch, log_q_batch
 
 
-def update_vmf_parameters(anchors_mass, d, kappa_min=2.0, kappa_max=15.0):
+def update_vmf_parameters(anchors_mass, d, kappas_array):
+
     """
     SciPy Helper: Turns ray masses into mixture weights, variances, and Bessel constants.
     Also calculates the exact mathematical constant for the uniform sphere.
-    Used by: `vMFProposer.generate_batch` in `proposal.py` just before generating rays.
     """
     log_mass = np.log(anchors_mass + 1e-15)
     
     # 1. Selection Probabilities (alpha)
     log_alpha = log_mass - logsumexp(log_mass)
     
-    # 2. Dynamic Tightness (kappa) based on relative mass
-    rel_weights = np.exp(log_mass - np.max(log_mass))
-    kappas = kappa_min + (kappa_max - kappa_min) * np.sqrt(rel_weights)
+    # 2. Dynamic Tightness (kappa) is now PASSED IN from Phase 1.5
+    kappas = kappas_array 
     
     # 3. Log Normalizing Constants for vMF (USING THE NEW SAFETY WRAPPER)
     v = (d / 2.0) - 1.0
+    # Because kappas is an array, log_C naturally vectorizes into an array!
     log_C = (v * np.log(kappas)) - ((d / 2.0) * np.log(2.0 * np.pi)) - log_ive(v, kappas)
     
     # 4. Log Normalizing Constant for the d-dimensional Uniform Sphere
-    # C_unif = Gamma(d/2) / (2 * pi^(d/2))
     log_C_unif = loggamma(d / 2.0) - np.log(2.0) - (d / 2.0) * np.log(math.pi)
     
     return log_alpha, kappas, log_C, log_C_unif
@@ -214,4 +217,67 @@ class utilities:
         plt.axvline(0, color='black', linewidth=0.5)
         plt.title("Projection of d-dimensional Samples onto 2D Plane")
         
+        plt.show()
+
+    def acc_reject_view(self, accepted, rejected):
+        """
+        Visualizes the 2D projection of accepted and rejected samples 
+        generated in d-dimensional Cartesian directional form side-by-side.
+        Used by: The end user via Jupyter Notebooks or run scripts to verify 
+        sample distribution and analyze rejection patterns.
+        """
+        
+        # Helper function to extract 2D coordinates efficiently
+        def get_2d_coordinates(samples):
+            if not samples:
+                return [], []
+            directions = np.array([item[0] for item in samples]) 
+            radii = np.array([item[1] for item in samples])
+            
+            # Slice first two dimensions and multiply by radius
+            a_2d = directions[:, :2] 
+            coordinates = radii[:, None] * a_2d 
+            return coordinates[:, 0], coordinates[:, 1]
+
+        # Extract coordinates for both sets
+        x_acc, y_acc = get_2d_coordinates(accepted)
+        x_rej, y_rej = get_2d_coordinates(rejected)
+
+        # Create a figure with 1 row and 2 columns
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+        
+        # Bounding box coordinates using the class attribute 'self.a'
+        box_x = [-(self.a/2), (self.a/2), (self.a/2), -(self.a/2), -(self.a/2)]
+        box_y = [-(self.a/2), -(self.a/2), (self.a/2), (self.a/2), -(self.a/2)]
+
+        # ------------------ Plot 1: Accepted ------------------
+        ax1.plot(box_x, box_y, color='black', lw=2)
+        if len(x_acc) > 0:
+            ax1.scatter(x_acc, y_acc, color='green', s=10, alpha=0.7)
+        
+        ax1.set_aspect('equal')
+        ax1.axhline(0, color='black', linewidth=0.5)
+        ax1.axvline(0, color='black', linewidth=0.5)
+        ax1.set_title(f"Accepted Samples (N={len(accepted)})")
+
+        # ------------------ Plot 2: Rejected ------------------
+        ax2.plot(box_x, box_y, color='black', lw=2)
+        if len(x_rej) > 0:
+            ax2.scatter(x_rej, y_rej, color='red', s=10, alpha=0.5)
+            
+        ax2.set_aspect('equal')
+        ax2.axhline(0, color='black', linewidth=0.5)
+        ax2.axvline(0, color='black', linewidth=0.5)
+        ax2.set_title(f"Rejected Samples (N={len(rejected)})")
+
+        # Safely determine dimension 'd' from the direction array
+        if accepted:
+            d = len(accepted[0][0])
+        elif rejected:
+            d = len(rejected[0][0])
+        else:
+            d = "Unknown"
+
+        # Display the plots
+        plt.suptitle(f"Projection of d={d} Samples onto 2D Plane", fontsize=14, y=0.95)
         plt.show()

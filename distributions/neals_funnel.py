@@ -77,11 +77,15 @@ class nsmc_sampling_neal_funnel(nsmc_sampling):
                 
         return f_r_funnel
 
-    def get_samples(self, batch_size=None):
+    def get_samples(self, batch_size=3256, fallback_proposer="vmf", switch_threshold=0.05, burn_in_samples=None, max_anchors=50):
         funnel_den = self.f_r_neal_funnel()
-        if batch_size is None:
-            accepted, rejected = self._sampling_f_r_new(funnel_den)
-        else:
-            accepted, rejected = self._sampling_f_r_new(funnel_den, batch_size)
+        accepted, rejected = self._sampling_universal(
+            density=funnel_den,
+            batch_size=batch_size,
+            fallback_proposer=fallback_proposer,
+            switch_threshold=switch_threshold,
+            burn_in_samples=burn_in_samples,
+            max_anchors=max_anchors
+        )
         return accepted, rejected
 

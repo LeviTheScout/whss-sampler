@@ -66,20 +66,29 @@ class OrthantProposer(BaseProposer):
         log_q_batch = log_selection_prob + self.log_orthant_density
         
         return theta_batch, log_q_batch
-
 # =====================================================================
 # 4. ADAPTIVE vMF STRATEGY (Phase 2)
 # =====================================================================
 class vMFProposer(BaseProposer):
-    def __init__(self, d, initial_anchors_mu, initial_anchors_mass):
+    def __init__(self, d, initial_anchors_mu, initial_anchors_mass, initial_kappas=None):
         self.d = d
         self.anchors_mu = np.array(initial_anchors_mu)
         self.anchors_mass = np.array(initial_anchors_mass)
+        
+        # If no kappas provided (Phase 1 to Phase 1.5 transition), default to 15.0
+        if initial_kappas is None:
+            self.kappas = np.full(len(self.anchors_mu), 15.0)
+        else:
+            self.kappas = np.array(initial_kappas)
+            
         self.cos_threshold = 0.85 
         
     def generate_batch(self, batch_size):
         num_vmf = int(0.90 * batch_size)
-        log_alpha, kappas, log_C, log_C_unif = update_vmf_parameters(self.anchors_mass, self.d)
+        
+        # --- THE FIX IS HERE: Add self.kappas as the 3rd argument ---
+        log_alpha, kappas, log_C, log_C_unif = update_vmf_parameters(self.anchors_mass, self.d, self.kappas)
+        # ------------------------------------------------------------
         
         alpha_probs = np.exp(log_alpha)
         parent_indices = np.random.choice(len(self.anchors_mu), size=num_vmf, p=alpha_probs)
@@ -95,36 +104,10 @@ class vMFProposer(BaseProposer):
         return theta_batch, log_q_batch
 
     def update_knowledge(self, theta_batch, log_mass_batch):
-        # FREEZE! Adaptive proposals in exact Rejection Sampling 
-        # ruin the M_global bound by creating the "Ratchet Trap".
-        # We rely strictly on the 50 anchors found by Phase 1.
-        pass     
-       
-    # def update_knowledge(self, theta_batch, log_mass_batch):
-    #     best_indices = np.argsort(log_mass_batch)[::-1]
-    #     top_k = max(1, len(log_mass_batch) // 20)
-        
-    #     for idx in best_indices[:top_k]:
-    #         new_mass = np.exp(log_mass_batch[idx])
-    #         new_theta = theta_batch[idx]
-            
-    #         similarities = np.dot(self.anchors_mu, new_theta)
-    #         closest_idx = np.argmax(similarities)
-            
-    #         if similarities[closest_idx] > self.cos_threshold:
-    #             if new_mass > self.anchors_mass[closest_idx]:
-    #                 self.anchors_mu[closest_idx] = new_theta
-    #                 self.anchors_mass[closest_idx] = new_mass
-    #         else:
-    #             worst_idx = np.argmin(self.anchors_mass)
-    #             if new_mass > self.anchors_mass[worst_idx]:
-    #                 self.anchors_mu[worst_idx] = new_theta
-    #                 self.anchors_mass[worst_idx] = new_mass
-
+        pass
 # =====================================================================
 # 5. THE PHASE MANAGER (The Conductor)
 # =====================================================================
-
 class PhaseManager:
     def __init__(self, d, switch_threshold=0.05, fallback_strategy="vmf", burn_in_samples=10000, max_anchors=50, exploration_batches=5):
         self.d = d
@@ -133,12 +116,12 @@ class PhaseManager:
         self.burn_in_samples = burn_in_samples
         self.max_anchors = max_anchors
         
-        # New Phase 1.5 Parameters
+        # Phase parameters
         self.exploration_batches = exploration_batches
         self.exploration_count = 0
         self.phase = 1  # 1: Uniform, 2: Explore, 3: Exact
         
-        from .proposal import UniformProposer # Ensure relative imports are correct for your structure
+        from .proposal import UniformProposer
         self.active_proposer = UniformProposer(d)
         
         self.best_thetas = []
@@ -155,14 +138,12 @@ class PhaseManager:
         if self.phase == 1:
             self.total_accepted += count
 
-    def update_knowledge(self, theta_batch, log_mass_batch):
-        # ==========================================
-        # PHASE 1: UNIFORM BLIND SEARCH
-        # ==========================================
+    def update_knowledge(self, theta_batch, log_mass_batch, log_q_batch=None):
         if self.phase == 1:
-            best_idx = np.argmax(log_mass_batch)
-            self.best_thetas.append(theta_batch[best_idx])
-            self.best_masses.append(np.exp(log_mass_batch[best_idx]))
+            # Grab top 10 per batch to speed up initial gathering
+            top_idx = np.argsort(log_mass_batch)[::-1][:10]
+            self.best_thetas.extend(theta_batch[top_idx])
+            self.best_masses.extend(np.exp(log_mass_batch[top_idx]))
             
             if len(self.best_thetas) > self.max_anchors:
                 sorted_indices = np.argsort(self.best_masses)[::-1][:self.max_anchors]
@@ -177,32 +158,65 @@ class PhaseManager:
                     self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses)
                     self.phase = 2
 
-        # ==========================================
-        # PHASE 2: ADAPTIVE EXPLORATION (Hunting the peaks)
-        # ==========================================
         elif self.phase == 2:
-            best_idx = np.argmax(log_mass_batch)
-            self.best_thetas.append(theta_batch[best_idx])
-            self.best_masses.append(np.exp(log_mass_batch[best_idx]))
+            # 1. Calculate the Ratio! 
+            if log_q_batch is not None:
+                log_ratio = log_mass_batch - log_q_batch
+            else:
+                log_ratio = log_mass_batch
+
+            # 2. Convert Ratios to Selection Probabilities
+            max_ratio = np.max(log_ratio)
+            weights = np.exp(log_ratio - max_ratio)
+            probs = weights / np.sum(weights)
             
-            sorted_indices = np.argsort(self.best_masses)[::-1][:self.max_anchors]
-            self.best_thetas = [self.best_thetas[i] for i in sorted_indices]
-            self.best_masses = [self.best_masses[i] for i in sorted_indices]
+            # 3. Resample anchors perfectly distributed across the ellipse!
+            chosen_indices = np.random.choice(len(theta_batch), size=self.max_anchors, p=probs, replace=True)
+            self.best_thetas = [theta_batch[i] for i in chosen_indices]
+            self.best_masses = [np.exp(log_mass_batch[i]) for i in chosen_indices]
             
-            # Re-instantiate vMF to update the envelope shape with the new, better anchors!
+            # ====================================================
+            # NEW: DYNAMIC KAPPA CALCULATION (Banerjee Approximation)
+            # ====================================================
+            best_thetas_np = np.array(self.best_thetas)
+            
+            # Assign every generated ray to its closest new anchor
+            similarities = np.dot(theta_batch, best_thetas_np.T)
+            cluster_assignments = np.argmax(similarities, axis=1)
+            
+            dynamic_kappas = np.zeros(self.max_anchors)
+            
+            for k in range(self.max_anchors):
+                cluster_rays = theta_batch[cluster_assignments == k]
+                
+                if len(cluster_rays) > 0:
+                    # Calculate Mean Resultant Length (R_bar)
+                    mean_vec = np.mean(cluster_rays, axis=0)
+                    R_bar = np.linalg.norm(mean_vec)
+                    
+                    # Safety bound to prevent division by zero
+                    R_bar = min(R_bar, 0.999) 
+                    
+                    # The Banerjee Approximation Formula
+                    kappa_k = (R_bar * (self.d - R_bar**2)) / (1.0 - R_bar**2)
+                    
+                    # Cap sharpness so needles don't become infinitesimally thin
+                    dynamic_kappas[k] = min(kappa_k, 150.0)
+                else:
+                    dynamic_kappas[k] = 15.0 # Safe fallback for empty clusters
+            # ====================================================
+            
+            # Update the Proposer with the newly distributed anchors AND their unique kappas
             from .proposal import vMFProposer
-            self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses)
+            self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses, dynamic_kappas)
             
             self.exploration_count += 1
             if self.exploration_count >= self.exploration_batches:
-                print("\nExploration complete! Anchors frozen. Starting Phase 3 (Exact Sampling)!")
+                theta_array = np.array(self.best_thetas)
+                unique_anchors = len(np.unique(theta_array, axis=0))
+                print(f"\n[DIAGNOSTIC] Exploration complete! Unique anchors: {unique_anchors}/{self.max_anchors}")
+                print("Anchors frozen. Starting Phase 3 (Exact Sampling)!")
                 self.phase = 3
 
-        # ==========================================
-        # PHASE 3: EXACT SAMPLING (Anchors are frozen)
-        # ==========================================
         elif self.phase == 3:
             pass
-                    
-    def register_acceptances(self, count):
-        self.total_accepted += count

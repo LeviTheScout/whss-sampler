@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 # The C-speed 1D engine
 from nsmc_sampling.methods.importance import importance_r_numba
-
+from .utility import build_warp_matrix
 @dataclass
 class Samples:
     theta: np.ndarray
@@ -31,7 +31,6 @@ class Samples:
 
 
 class sampling:
-    
     def _sampling_universal(self, density, batch_size=3256, fallback_proposer="vmf", switch_threshold=0.05, burn_in_samples=None, max_anchors=50):
         
         if burn_in_samples is None:
@@ -42,13 +41,14 @@ class sampling:
             d=self.d, switch_threshold=switch_threshold, 
             fallback_strategy=fallback_proposer,
             burn_in_samples=burn_in_samples, max_anchors=max_anchors,
-            exploration_batches=5 # It will adapt for 5 batches (~16k rays) before freezing
+            exploration_batches=30 # Adaps for 5 batches (~16k rays) before freezing
         )
         
+        import time
+        from tqdm import tqdm
         
         t_main = time.perf_counter()
         
-        # Vaults
         final_accepted = Samples(theta=np.empty((0, self.d)), r_batch=np.array([]))
         accepted = Samples(theta=np.empty((0, self.d)), r_batch=np.array([]))
         rejected = Samples(theta=np.empty((0, self.d)), r_batch=np.array([]))
@@ -61,12 +61,9 @@ class sampling:
                 
                 current_phase = proposer.phase
                 
-                # ==========================================
-                # PHASE TRANSITION GATES
-                # ==========================================
                 # Transition 1 -> 2 (Uniform -> Exploration)
                 if current_phase == 2 and previous_phase == 1:
-                    final_accepted.extend(accepted) # Lock in uniform samples
+                    final_accepted.extend(accepted)
                     accepted = Samples(theta=np.empty((0, self.d)), r_batch=np.array([]))
                     M_global = -np.inf
                     previous_phase = 2
@@ -74,25 +71,20 @@ class sampling:
                 # Transition 2 -> 3 (Exploration -> Exact Sampling)
                 elif current_phase == 3 and previous_phase == 2:
                     accepted = Samples(theta=np.empty((0, self.d)), r_batch=np.array([]))
-                    M_global = -np.inf # Fresh start for exact sampling
+                    M_global = -np.inf 
                     previous_phase = 3
                 
-                # ==========================================
-                # RAY GENERATION & EVALUATION
-                # ==========================================
                 theta_batch, log_q_batch = proposer.generate_batch(batch_size)
                 R_batch = self.R(theta_batch)  
                 a_batch, b_batch, log_peak_batch, log_mass_batch = self.importance_r(density, R_batch, theta_batch)
                 
-                proposer.update_knowledge(theta_batch, log_mass_batch)
+                # --- SIR UPDATE: Pass log_q_batch so it can evaluate the ratio ---
+                proposer.update_knowledge(theta_batch, log_mass_batch, log_q_batch)
+                # -----------------------------------------------------------------
                 
-                # If we are in Phase 2 (Hunting), skip the math and don't save samples!
                 if proposer.phase == 2:
                     continue
                 
-                # ==========================================
-                # EXACT SAMPLING MATH (Phase 1 & Phase 3 only)
-                # ==========================================
                 log_ratio_batch = log_mass_batch - log_q_batch
                 current_batch_M = np.max(log_ratio_batch)
                 
@@ -105,6 +97,10 @@ class sampling:
                         accepted = accepted.filter(keep_mask)
                         
                     M_global = current_batch_M
+                    
+                    # --- DIAGNOSTIC HOOK 2: CHECK FOR RATCHET TRAP ---
+                    print(f"\n[DIAGNOSTIC] M_global ratcheted up to log(M) = {M_global:.2f}")
+                    # -------------------------------------------------
                     
                 r_batch = np.random.uniform(a_batch, b_batch)
                 log_f_r = density(r_batch, theta_batch)
@@ -131,4 +127,4 @@ class sampling:
         final_accepted.extend(accepted)
         ans_accepted = list(zip(final_accepted.theta, final_accepted.r_batch))
         ans_rejected = list(zip(rejected.theta, rejected.r_batch))
-        return ans_accepted, ans_rejected
+        return ans_accepted, ans_rejected 
