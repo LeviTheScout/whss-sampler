@@ -139,6 +139,78 @@ def update_vmf_parameters(anchors_mass, d, kappas_array):
     
     return log_alpha, kappas, log_C, log_C_unif
 
+@njit(parallel=True)
+def parallel_scout_eval(rays, R_max_array, target_func):
+    """
+    Massively parallel 1D peak finder for the Phase 1.5 Scout.
+    Evaluates thousands of rays simultaneously using all CPU cores.
+    """
+    N, d = rays.shape
+    x_coords = np.empty((N, d))
+    peaks = np.empty(N)
+    
+    for i in prange(N):
+        direction = rays[i]
+        R_max = R_max_array[i]
+        
+        # Numba executes this directly in C
+        r_max = find_peak_golden_section(target_func, direction, R_max)
+        peak_val = target_func(r_max, direction)
+        
+        x_coords[i] = r_max * direction
+        peaks[i] = peak_val
+        
+    return x_coords, peaks
+
+
+def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
+    """
+    Builds the Covariance Warp Matrix (L) at maximum parallel speed.
+    """
+    print("\n[WARP ENGINE] Booting Phase 1.5: Calculating optimal space transformation...")
+    num_anchors = len(anchors)
+    N = max(2000, 20 * d**2)
+    
+    anchor_indices = np.random.randint(0, num_anchors, size=N)
+    chosen_anchors = anchors[anchor_indices]
+    
+    if kappa_scout is None:
+        kappa_scout = max(1.0, d / 2.0)
+        
+    noise = np.random.normal(0, 1 / np.sqrt(kappa_scout), size=(N, d))
+    rays = chosen_anchors + noise
+    rays = rays / np.linalg.norm(rays, axis=1, keepdims=True)
+    
+    # Pre-calculate R bounds
+    R_max_array = R_func(rays)
+    
+    # --- LAUNCH PARALLEL C-SPEED CORE ---
+    x_coords, peaks = parallel_scout_eval(rays, R_max_array, target_func)
+    # ------------------------------------
+    
+    dots = np.sum(rays * chosen_anchors, axis=1)
+    q_theta = np.exp(kappa_scout * dots) 
+    
+    weights = np.exp(peaks - np.max(peaks)) / (q_theta + 1e-10)
+    weight_sum = np.sum(weights)
+    
+    if weight_sum == 0 or not np.isfinite(weight_sum):
+        weights = np.ones(N) / N
+    else:
+        weights = weights / weight_sum
+        
+    mu_w = np.sum(weights[:, None] * x_coords, axis=0)
+    centered_x = x_coords - mu_w
+    Sigma = (centered_x.T * weights) @ centered_x
+    
+    epsilon = 1e-4
+    Sigma_safe = Sigma + epsilon * np.eye(d)
+    
+    L = cholesky(Sigma_safe, lower=True)
+    L_inv = np.linalg.inv(L)
+    print("[WARP ENGINE] Universe successfully warped. Transitioning to Phase 3.")
+    
+    return L, L_inv
 
 # ==============================================================================
 # EXISTING UTILITIES CLASS
