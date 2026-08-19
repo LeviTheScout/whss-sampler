@@ -7,6 +7,7 @@ from scipy.special import logsumexp, ive, loggamma
 from scipy.linalg import cholesky
 # Import your exact 1D searcher so Numba can link them at C-level
 from .importance import find_peak_golden_section 
+
 # ==============================================================================
 # PHASE 2 MATH TOOLS (High-Performance Numba & SciPy Functions)
 # Placed outside the class so Numba can compile them to raw C-code.
@@ -170,7 +171,7 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     """
     print("\n[WARP ENGINE] Booting Phase 1.5: Calculating optimal space transformation...")
     num_anchors = len(anchors)
-    N = max(2000, 20 * d**2)
+    N = max(15000, 100 * d**2)
     
     anchor_indices = np.random.randint(0, num_anchors, size=N)
     chosen_anchors = anchors[anchor_indices]
@@ -250,6 +251,17 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     
     # 3. Blend the Noisy Empirical Matrix with the Safe Matrix
     Sigma_shrunk = (1.0 - alpha) * Sigma + alpha * Safe_Matrix
+
+    # --- [NEW PROBE 1: THE RAW MATRIX X-RAY] ---
+    try:
+        raw_eigs = np.sort(np.linalg.eigvalsh(Sigma))
+        print(f"\n[MATRIX X-RAY]")
+        print(f"Raw Data Max Eigenvalue  : {raw_eigs[-1]:.4f}")
+        print(f"Raw Data Min Eigenvalue  : {raw_eigs[0]:.4f}")
+        print(f"Shrinkage Applied        : {alpha*100:.1f}%")
+    except Exception as e:
+        print(f"[MATRIX X-RAY FAILED]: {e}")
+    # -------------------------------------------
     # =====================================================================
     
     epsilon = 1e-4
