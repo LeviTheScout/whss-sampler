@@ -93,8 +93,8 @@ class vMFProposer(BaseProposer):
         alpha_probs = np.exp(log_alpha)
         parent_indices = np.random.choice(len(self.anchors_mu), size=num_vmf, p=alpha_probs)
         
-        log_w_vmf = np.log(0.90)
-        log_w_unif = np.log(0.10)
+        log_w_vmf = np.log(0.75)
+        log_w_unif = np.log(0.25)
         
         theta_batch, log_q_batch = parallel_generate_and_evaluate(
             batch_size, self.d, parent_indices, 
@@ -159,54 +159,50 @@ class PhaseManager:
                     self.phase = 2
 
         elif self.phase == 2:
-            # 1. Calculate the Ratio! 
             if log_q_batch is not None:
                 log_ratio = log_mass_batch - log_q_batch
             else:
                 log_ratio = log_mass_batch
 
-            # 2. Convert Ratios to Selection Probabilities
-            max_ratio = np.max(log_ratio)
-            weights = np.exp(log_ratio - max_ratio)
-            probs = weights / np.sum(weights)
-            
-            # 3. Resample anchors perfectly distributed across the ellipse!
-            chosen_indices = np.random.choice(len(theta_batch), size=self.max_anchors, p=probs, replace=True)
-            self.best_thetas = [theta_batch[i] for i in chosen_indices]
-            self.best_masses = [np.exp(log_mass_batch[i]) for i in chosen_indices]
-            
             # ====================================================
-            # NEW: DYNAMIC KAPPA CALCULATION (Banerjee Approximation)
+            # THE OVERLAP FIX: GREEDY SPATIAL FILTERING
             # ====================================================
-            best_thetas_np = np.array(self.best_thetas)
+            sorted_idx = np.argsort(log_ratio)[::-1]
+            new_thetas = []
+            new_masses = []
             
-            # Assign every generated ray to its closest new anchor
-            similarities = np.dot(theta_batch, best_thetas_np.T)
-            cluster_assignments = np.argmax(similarities, axis=1)
-            
-            dynamic_kappas = np.zeros(self.max_anchors)
-            
-            for k in range(self.max_anchors):
-                cluster_rays = theta_batch[cluster_assignments == k]
+            for idx in sorted_idx:
+                candidate = theta_batch[idx]
                 
-                if len(cluster_rays) > 0:
-                    # Calculate Mean Resultant Length (R_bar)
-                    mean_vec = np.mean(cluster_rays, axis=0)
-                    R_bar = np.linalg.norm(mean_vec)
+                if len(new_thetas) > 0:
+                    overlaps = np.dot(new_thetas, candidate)
+                    if np.max(overlaps) > 0.85: # Strict separation bound!
+                        continue
+                        
+                new_thetas.append(candidate)
+                new_masses.append(np.exp(log_mass_batch[idx]))
+                
+                if len(new_thetas) == self.max_anchors:
+                    break
                     
-                    # Safety bound to prevent division by zero
-                    R_bar = min(R_bar, 0.999) 
-                    
-                    # The Banerjee Approximation Formula
-                    kappa_k = (R_bar * (self.d - R_bar**2)) / (1.0 - R_bar**2)
-                    
-                    # Cap sharpness so needles don't become infinitesimally thin
-                    dynamic_kappas[k] = min(kappa_k, 150.0)
-                else:
-                    dynamic_kappas[k] = 15.0 # Safe fallback for empty clusters
-            # ====================================================
+            # Safe Fallback: If space is too narrow to find 50 separate anchors at 0.85, 
+            # fill the rest with the highest remaining weights that aren't EXACT copies.
+            if len(new_thetas) < self.max_anchors:
+                for idx in sorted_idx:
+                    candidate = theta_batch[idx]
+                    overlaps = np.dot(new_thetas, candidate)
+                    if np.max(overlaps) < 0.999: # Allow closer packing, but NO exact duplicates
+                        new_thetas.append(candidate)
+                        new_masses.append(np.exp(log_mass_batch[idx]))
+                    if len(new_thetas) == self.max_anchors:
+                        break
+                        
+            self.best_thetas = new_thetas
+            self.best_masses = new_masses
+# GEOMETRIC LOCK: 0.7 * d prevents all Tail Failures while keeping M low
+            fixed_kappa = max(5.0, float(self.d) * 0.7)
+            dynamic_kappas = np.full(self.max_anchors, fixed_kappa)
             
-            # Update the Proposer with the newly distributed anchors AND their unique kappas
             from .proposal import vMFProposer
             self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses, dynamic_kappas)
             
@@ -219,4 +215,33 @@ class PhaseManager:
                 self.phase = 3
 
         elif self.phase == 3:
+            # PROTECT THE EXACT SAMPLER: Do nothing here.
             pass
+
+    def warmup_kappas(self, theta_batch):
+        """
+        DEDICATED PHASE 2.5 WARMUP FUNCTION.
+        Safely updates kappas in the warped space WITHOUT touching the frozen anchors.
+        """
+        if self.phase != 3: return
+        
+        frozen_anchors = np.array(self.active_proposer.anchors_mu)
+        similarities = np.dot(theta_batch, frozen_anchors.T)
+        cluster_assignments = np.argmax(similarities, axis=1)
+        
+        new_kappas = np.zeros(len(frozen_anchors))
+        
+        for k in range(len(frozen_anchors)):
+            cluster_rays = theta_batch[cluster_assignments == k]
+            if len(cluster_rays) > 0:
+                mean_vec = np.mean(cluster_rays, axis=0)
+                R_bar = min(np.linalg.norm(mean_vec), 0.999)
+                kappa_k = (R_bar * (self.d - R_bar**2)) / (1.0 - R_bar**2)
+                
+                # Smooth learning: average old and new
+                old_kappa = self.active_proposer.kappas[k]
+                new_kappas[k] = min(0.5 * old_kappa + 0.5 * kappa_k, 150.0)
+            else:
+                new_kappas[k] = self.active_proposer.kappas[k]
+                
+        self.active_proposer.kappas = new_kappas

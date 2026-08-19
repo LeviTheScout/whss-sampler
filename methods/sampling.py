@@ -36,6 +36,14 @@ def create_warped_density(original_density, L_matrix, d):
         
     return warped_density
 
+@njit
+def evaluate_density_batch(density_func, r_batch, theta_batch):
+    n = len(r_batch)
+    out = np.empty(n, dtype=np.float64)
+    # This loop runs in C-speed, ZERO Python overhead
+    for i in range(n):
+        out[i] = density_func(r_batch[i], theta_batch[i])
+    return out
 
 @dataclass
 class Samples:
@@ -120,15 +128,72 @@ class sampling:
                     rejected = Samples(theta=np.empty((0, self.d)), r_batch=np.array([]))
                     # ------------------------------------------
                     
-                    # 1. BUILD THE WARP MATRIX
-                    best_anchors = np.array(proposer.best_thetas)
+# ==========================================================
+                    # --- [PHASE 2.5] STOCHASTIC LOCAL ZOOM & DEDUPLICATION ---
+                    print("\n[PHASE 2.5] Zooming in on top peaks to prevent Phase 3 ratchets...")
+                    
+                    # Pull directly from your proposer's existing state
+                    initial_anchors = np.array(proposer.best_thetas) 
+                    refined_anchors = []
+                    zoom_rays = 100
+                    zoom_kappa = 200.0  
+                    
+                    for ray in initial_anchors:
+                        # 1. Generate local cluster
+                        noise = np.random.normal(0, 1 / np.sqrt(zoom_kappa), size=(zoom_rays, self.d))
+                        local_rays = ray + noise
+                        local_rays = local_rays / np.linalg.norm(local_rays, axis=1, keepdims=True)
+                        
+                        # 2. Evaluate true directional mass using your exact Phase 3 logic
+                        local_R = self.R(local_rays)
+                        _, _, _, local_masses = self.importance_r(density, local_R, local_rays)
+                        
+                        # 3. Find the exact highest summit
+                        best_local_idx = np.argmax(local_masses)
+                        refined_anchors.append(local_rays[best_local_idx])
+                        
+                    # 4. FILTER DUPLICATES (Prevent ESS collapse)
+                    unique_anchors = []
+                    for anchor in refined_anchors:
+                        if len(unique_anchors) == 0:
+                            unique_anchors.append(anchor)
+                        else:
+                            # Check similarity against already accepted unique anchors
+                            similarities = np.dot(unique_anchors, anchor)
+                            if np.max(similarities) < 0.85: # 0.85 = distinct enough
+                                unique_anchors.append(anchor)
+                                
+# If deduplication dropped us below max_anchors, pad with new random directions
+                    attempts = 0
+                    while len(unique_anchors) < proposer.max_anchors and attempts < 1000:
+                        # 1. Generate a purely random Uniform ray
+                        random_ray = np.random.normal(0, 1, size=self.d)
+                        random_ray = random_ray / np.linalg.norm(random_ray)
+                        
+                        # 2. Check for overlap
+                        similarities = np.dot(unique_anchors, random_ray)
+                        if np.max(similarities) < 0.85:
+                            unique_anchors.append(random_ray)
+                            
+                        attempts += 1
+                    
+                    if attempts >= 1000:
+                        print(f"[WARNING] Sphere is crowded. Proceeding with {len(unique_anchors)} anchors.")
+                        
+                    # Lock in the final, perfect, unique anchors
+                    best_anchors = np.array(unique_anchors[:proposer.max_anchors])
+                    proposer.best_thetas = list(best_anchors)
+                    print(f"[PHASE 2.5] Zoom complete. {len(best_anchors)} distinct summits locked.")
+                    # ==========================================================
+
+                    # 1. BUILD THE WARP MATRIX (Using the perfected anchors)
                     self.L, self.L_inv = build_warp_matrix(best_anchors, density, self.R, self.d)
                     
                     # 2. CREATE THE JIT-COMPILED WARPED DENSITY
                     density = create_warped_density(density, self.L, self.d)
                     is_warped = True
                     
-                    # 3. TRANSLATE THE ANCHORS
+                    # 3. TRANSLATE THE ANCHORS (The Starting Point)
                     warped_anchors = np.dot(best_anchors, self.L_inv.T)
                     warped_anchors = warped_anchors / np.linalg.norm(warped_anchors, axis=1, keepdims=True)
                     proposer.active_proposer.anchors_mu = warped_anchors
@@ -143,6 +208,31 @@ class sampling:
                     
                     R_func = warped_R
                     
+                    
+                    # =====================================================================
+                    # --- [START] ENVELOPE DIAGNOSTIC PROBE ---
+                    try:
+                        anchors_to_check = proposer.active_proposer.anchors_mu
+                        kappas_to_check = proposer.active_proposer.kappas
+                        print("\n[ENVELOPE DIAGNOSTIC]")
+                        print(f"Total Anchors Active : {len(kappas_to_check)}")
+                        print(f"Kappas (Sharpness)   : Min={kappas_to_check.min():.2f} | Mean={kappas_to_check.mean():.2f} | Max={kappas_to_check.max():.2f}")
+                        
+                        # Calculate pairwise overlap (dot products) of the anchors
+                        dots = np.dot(anchors_to_check, anchors_to_check.T)
+                        np.fill_diagonal(dots, -1.0) # Ignore self-overlap
+                        
+                        max_overlap = np.max(dots)
+                        mean_overlap = np.mean(dots[dots > -1.0])
+                        
+                        print(f"Max Anchor Overlap   : {max_overlap:.4f} (1.0 = identical)")
+                        print(f"Mean Anchor Overlap  : {mean_overlap:.4f}")
+                        print("-" * 30)
+                    except Exception as e:
+                        print(f"[ENVELOPE DIAGNOSTIC FAILED]: {e}")
+                    # --- [END] ENVELOPE DIAGNOSTIC PROBE --------------------------------
+                    # =====================================================================
+
                     accepted = Samples(theta=np.empty((0, self.d)), r_batch=np.array([]))
                     M_global = -np.inf 
                     previous_phase = 3
@@ -166,11 +256,37 @@ class sampling:
                             accepted = accepted.filter(keep_mask)
                             
                         M_global = current_batch_M
-                        print(f"\n[DIAGNOSTIC] M_global ratcheted up to log(M) = {M_global:.2f}")
+                        
+                        # =====================================================================
+                        # --- [START] GAP DETECTOR PROBE ---
+                        try:
+                            import math
+                            from scipy.special import loggamma
+                            
+                            # Find the exact ray that caused the ratchet
+                            idx_max = np.argmax(log_ratio_batch)
+                            trigger_q = log_q_batch[idx_max]
+                            trigger_mass = log_mass_batch[idx_max]
+                            
+                            # Calculate the mathematical baseline of the Uniform Safety Net
+                            # (0.25 weight * uniform spherical density)
+                            log_unif_baseline = np.log(0.25) + loggamma(self.d / 2.0) - np.log(2.0) - (self.d / 2.0) * np.log(math.pi)
+                            
+                            # If log_q is within 0.1 of the baseline, the vMFs missed it entirely
+                            is_gap = (trigger_q <= log_unif_baseline + 0.1)
+                            
+                            print(f"\n[DIAGNOSTIC] M_global ratcheted up to log(M) = {M_global:.2f}")
+                            print(f"   -> Trigger Ray log_mass : {trigger_mass:.2f} | log_q : {trigger_q:.2f}")
+                            print(f"   -> Uniform Baseline     : {log_unif_baseline:.2f}")
+                            print(f"   -> Cause of Ratchet     : {'GAP DETECTED (Uniform Net Caught It)' if is_gap else 'vMF Tali Failure'}")
+                        except Exception as e:
+                            print(f"[DIAGNOSTIC] M_global ratcheted up to log(M) = {M_global:.2f} (Probe Failed: {e})")
+                        # --- [END] GAP DETECTOR PROBE --------------------------------------
+                        # =====================================================================
                         
                     r_batch = np.random.uniform(a_batch, b_batch)
                     
-                    log_f_r = np.array([density(r_batch[i], theta_batch[i]) for i in range(batch_size)])
+                    log_f_r =evaluate_density_batch(density, r_batch, theta_batch)
                     
                     log_mask1 = log_f_r - log_peak_batch
                     log_mask2 = log_ratio_batch - M_global

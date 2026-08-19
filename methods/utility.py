@@ -166,6 +166,7 @@ def parallel_scout_eval(rays, R_max_array, target_func):
 def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     """
     Builds the Covariance Warp Matrix (L) at maximum parallel speed.
+    Includes Adaptive Covariance Shrinkage and ESS Diagnostics.
     """
     print("\n[WARP ENGINE] Booting Phase 1.5: Calculating optimal space transformation...")
     num_anchors = len(anchors)
@@ -175,7 +176,7 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     chosen_anchors = anchors[anchor_indices]
     
     if kappa_scout is None:
-        kappa_scout = max(1.0, d / 2.0)
+        kappa_scout = max(10.0, d * 5.0)
         
     noise = np.random.normal(0, 1 / np.sqrt(kappa_scout), size=(N, d))
     rays = chosen_anchors + noise
@@ -188,28 +189,102 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     x_coords, peaks = parallel_scout_eval(rays, R_max_array, target_func)
     # ------------------------------------
     
+    # 4. De-biasing (Importance Weights)
     dots = np.sum(rays * chosen_anchors, axis=1)
-    q_theta = np.exp(kappa_scout * dots) 
     
-    weights = np.exp(peaks - np.max(peaks)) / (q_theta + 1e-10)
+    # The log of the vMF proposal density
+    log_q_theta = kappa_scout * dots 
+    
+    # 1. Calculate the true log-ratio (log Target - log Proposal)
+    log_weights = peaks - log_q_theta
+    
+    # --- THE L-MATRIX UPGRADE: CORRECT TEMPERATURE SMOOTHING ---
+    # 2. Find the variance of the log-weights
+    weight_std = np.std(log_weights) + 1e-10
+    temperature = max(1.0, weight_std / 2.0)
+    
+    # 3. Apply temperature to the RATIO so we don't invert the math
+    smoothed_log_w = log_weights / temperature
+    
+    # 4. Safely exponentiate
+    weights = np.exp(smoothed_log_w - np.max(smoothed_log_w))
+    # -----------------------------------------------------------
+    
     weight_sum = np.sum(weights)
     
+    # Normalize weights and calculate Kish ESS upfront so both diagnostics and shrinkage can use it
     if weight_sum == 0 or not np.isfinite(weight_sum):
         weights = np.ones(N) / N
+        kish_ess = float(N)
     else:
         weights = weights / weight_sum
+        kish_ess = 1.0 / np.sum(weights**2)
+        
+    # =====================================================================
+    # --- [START] ESS DIAGNOSTIC PROBE ---
+    try:
+        print(f"\n[ESS DIAGNOSTIC]")
+        print(f"Total Scout Rays Fired : {len(weights)}")
+        print(f"Effective Sample Size  : {kish_ess:.1f}")
+        print(f"Max Single Ray Weight  : {(np.max(weights) * 100):.2f}% of total mass")
+        print("-" * 30)
+    except Exception as e:
+        print(f"[ESS DIAGNOSTIC FAILED]: {e}")
+    # --- [END] ESS DIAGNOSTIC PROBE -------------------------------------
+    # =====================================================================
         
     mu_w = np.sum(weights[:, None] * x_coords, axis=0)
     centered_x = x_coords - mu_w
     Sigma = (centered_x.T * weights) @ centered_x
     
-    epsilon = 1e-4
-    Sigma_safe = Sigma + epsilon * np.eye(d)
+    # =====================================================================
+    # --- ADAPTIVE COVARIANCE SHRINKAGE ---
     
+    # 1. Determine Shrinkage Intensity (alpha)
+    # Ratio of dimensions to (ESS + dimensions). Caps at 0.9 for safety.
+    alpha = min(0.9, d / (kish_ess + d))
+    
+    # 2. Build the "Safe" Spherical Matrix (scaled to average variance)
+    avg_variance = np.trace(Sigma) / d
+    Safe_Matrix = avg_variance * np.eye(d)
+    
+    # 3. Blend the Noisy Empirical Matrix with the Safe Matrix
+    Sigma_shrunk = (1.0 - alpha) * Sigma + alpha * Safe_Matrix
+    # =====================================================================
+    
+    epsilon = 1e-4
+    Sigma_safe = Sigma_shrunk + epsilon * np.eye(d)
+    
+    # Assuming 'cholesky' is imported appropriately
     L = cholesky(Sigma_safe, lower=True)
     L_inv = np.linalg.inv(L)
-    print("[WARP ENGINE] Universe successfully warped. Transitioning to Phase 3.")
-    
+    print(f"[WARP ENGINE] Universe warped (Shrinkage applied: {alpha*100:.1f}%). Transitioning to Phase 3.")
+
+# ====================================================
+# --- [START] L MATRIX DIAGNOSTIC PROBE ---
+    try:
+        
+        # Test the final, shrunk covariance matrix
+        matrix_to_test = Sigma_safe 
+        
+        eigenvalues = np.linalg.eigvalsh(matrix_to_test)
+        cond_number = np.max(eigenvalues) / (np.min(eigenvalues) + 1e-12)
+        
+        print("\n=== [L MATRIX DIAGNOSTIC] ===")
+        print(f"Condition Number : {cond_number:.2f}")
+        print(f"Max Eigenvalue   : {np.max(eigenvalues):.4f}")
+        print(f"Min Eigenvalue   : {np.min(eigenvalues):.4f}")
+        
+        # Print the top 3 and bottom 3 to see the extremes
+        sorted_eigs = np.sort(eigenvalues)
+        print(f"Largest 3 Axes   : {np.round(sorted_eigs[-3:], 4)}")
+        print(f"Smallest 3 Axes  : {np.round(sorted_eigs[:3], 4)}")
+        print("=============================\n")
+    except Exception as e:
+        print(f"\n[L MATRIX DIAGNOSTIC FAILED]: {e}\n")
+# --- [END] L MATRIX DIAGNOSTIC PROBE ----------------
+# ====================================================
+
     return L, L_inv
 
 # ==============================================================================
