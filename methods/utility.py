@@ -238,39 +238,45 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     centered_x = x_coords - mu_w
     Sigma = (centered_x.T * weights) @ centered_x
     
-    # =====================================================================
-    # --- ADAPTIVE COVARIANCE SHRINKAGE ---
+# =====================================================================
+# =====================================================================
+    # --- UNIVERSAL SPECTRAL INFLATION (Data-Driven Tail Detection) ---
+    evals, evecs = np.linalg.eigh(Sigma)
     
-    # 1. Determine Shrinkage Intensity (alpha)
-    # Ratio of dimensions to (ESS + dimensions). Caps at 0.9 for safety.
-    alpha = min(0.9, d / (kish_ess + d))
+    # 1. Prevent dimension collapse (floor safely at 0.25)
+    evals = np.maximum(evals, 0.25)
     
-    # 2. Build the "Safe" Spherical Matrix (scaled to average variance)
-    avg_variance = np.trace(Sigma) / d
-    Safe_Matrix = avg_variance * np.eye(d)
+    # 2. Dynamic multiplier based on dimension
+    inflation_factor = 1.0 + (float(d) / 10.0) 
     
-    # 3. Blend the Noisy Empirical Matrix with the Safe Matrix
-    Sigma_shrunk = (1.0 - alpha) * Sigma + alpha * Safe_Matrix
-
-    # --- [NEW PROBE 1: THE RAW MATRIX X-RAY] ---
+    # 3. Data-driven tail detection
+    # Find the "bulk" of the distribution (median eigenvalue).
+    median_val = np.median(evals)
+    inflated_count = 0
+    
+    # 4. ONLY inflate axes that are clearly stretched beyond the core.
+    for i in range(d):
+        if evals[i] > 2.0 * median_val:  # If axis is 2x wider than the core
+            evals[i] *= inflation_factor
+            inflated_count += 1
+            
+    Sigma_safe = evecs @ np.diag(evals) @ evecs.T
+    
     try:
         raw_eigs = np.sort(np.linalg.eigvalsh(Sigma))
         print(f"\n[MATRIX X-RAY]")
         print(f"Raw Data Max Eigenvalue  : {raw_eigs[-1]:.4f}")
-        print(f"Raw Data Min Eigenvalue  : {raw_eigs[0]:.4f}")
-        print(f"Shrinkage Applied        : {alpha*100:.1f}%")
+        print(f"Universal Inflation      : {inflation_factor:.1f}x applied to {inflated_count} target axes")
     except Exception as e:
-        print(f"[MATRIX X-RAY FAILED]: {e}")
-    # -------------------------------------------
+        pass
     # =====================================================================
-    
-    epsilon = 1e-4
-    Sigma_safe = Sigma_shrunk + epsilon * np.eye(d)
-    
-    # Assuming 'cholesky' is imported appropriately
+# -------------------------------------------
+# =====================================================================
+
+# Assuming 'cholesky' is imported appropriately
     L = cholesky(Sigma_safe, lower=True)
     L_inv = np.linalg.inv(L)
-    print(f"[WARP ENGINE] Universe warped (Shrinkage applied: {alpha*100:.1f}%). Transitioning to Phase 3.")
+    print(f"[WARP ENGINE] Universe warped (Inflation applied). Transitioning to Phase 3.")
 
 # ====================================================
 # --- [START] L MATRIX DIAGNOSTIC PROBE ---
