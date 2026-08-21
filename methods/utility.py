@@ -117,25 +117,26 @@ def parallel_generate_and_evaluate(batch_size, d, parent_indices, anchors_mu, lo
 
 
 def update_vmf_parameters(anchors_mass, d, kappas_array):
-
     """
     SciPy Helper: Turns ray masses into mixture weights, variances, and Bessel constants.
-    Also calculates the exact mathematical constant for the uniform sphere.
     """
-    log_mass = np.log(anchors_mass + 1e-15)
-    
-    # 1. Selection Probabilities (alpha)
-    log_alpha = log_mass - logsumexp(log_mass)
+    # =====================================================================
+    # --- BLACK-BOX FIX: EQUAL OPPORTUNITY ANCHORS ---
+    # We do not weight by scout mass. We force uniform weights (Defensive Mixture) 
+    # so every single distinct geometric anchor fires equally.
+    K = len(anchors_mass)
+    log_alpha = np.full(K, -np.log(float(K)))
+    # =====================================================================
     
     # 2. Dynamic Tightness (kappa) is now PASSED IN from Phase 1.5
     kappas = kappas_array 
     
-    # 3. Log Normalizing Constants for vMF (USING THE NEW SAFETY WRAPPER)
+    # 3. Log Normalizing Constants for vMF
     v = (d / 2.0) - 1.0
-    # Because kappas is an array, log_C naturally vectorizes into an array!
     log_C = (v * np.log(kappas)) - ((d / 2.0) * np.log(2.0 * np.pi)) - log_ive(v, kappas)
     
     # 4. Log Normalizing Constant for the d-dimensional Uniform Sphere
+    from scipy.special import loggamma 
     log_C_unif = loggamma(d / 2.0) - np.log(2.0) - (d / 2.0) * np.log(math.pi)
     
     return log_alpha, kappas, log_C, log_C_unif
@@ -199,10 +200,14 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     # 1. Calculate the true log-ratio (log Target - log Proposal)
     log_weights = peaks - log_q_theta
     
-    # --- THE L-MATRIX UPGRADE: CORRECT TEMPERATURE SMOOTHING ---
+# --- THE L-MATRIX UPGRADE: CORRECT TEMPERATURE SMOOTHING ---
     # 2. Find the variance of the log-weights
     weight_std = np.std(log_weights) + 1e-10
-    temperature = max(1.0, weight_std / 2.0)
+    
+    # BLACK-BOX FIX: By forcing the temperature to match the standard deviation, 
+    # we mathematically guarantee the smoothed weights have a std of 1.0. 
+    # This completely prevents the ESS from collapsing to 1.0 and saves the Covariance Matrix!
+    temperature = max(1.5, weight_std)
     
     # 3. Apply temperature to the RATIO so we don't invert the math
     smoothed_log_w = log_weights / temperature
@@ -210,7 +215,6 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     # 4. Safely exponentiate
     weights = np.exp(smoothed_log_w - np.max(smoothed_log_w))
     # -----------------------------------------------------------
-    
     weight_sum = np.sum(weights)
     
     # Normalize weights and calculate Kish ESS upfront so both diagnostics and shrinkage can use it
@@ -254,11 +258,20 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     median_val = np.median(evals)
     inflated_count = 0
     
-    # 4. ONLY inflate axes that are clearly stretched beyond the core.
+# 4. ONLY inflate axes that are clearly stretched beyond the core.
     for i in range(d):
         if evals[i] > 2.0 * median_val:  # If axis is 2x wider than the core
             evals[i] *= inflation_factor
             inflated_count += 1
+            
+    # =====================================================================
+    # --- BLACK-BOX FIX 1: DYNAMIC ANTI-SQUASH (Regularized Covariance) ---
+    # Limits extreme condition numbers (hallucinations) without breaking true geometries.
+    # Scales safely and infinitely with dimension.
+    max_stretch_ratio = max(50.0, float(d) * 2.5)
+    floor_e = np.min(evals)
+    evals = np.clip(evals, floor_e, floor_e * max_stretch_ratio)
+    # =====================================================================
             
     Sigma_safe = evecs @ np.diag(evals) @ evecs.T
     

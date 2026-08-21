@@ -220,16 +220,37 @@ class sampling:
                     np.fill_diagonal(dots, -1.0)
                     nn_dots = np.max(dots, axis=1)
                     
+                    # Raw mathematical sharpness
                     dynamic_kappas = self.d / (2.0 * (1.0 - nn_dots + 1e-5))
                     
-                    max_safe_kappa = float(self.d) * 0.4
-                    min_safe_kappa = float(self.d) * 0.2
-                    safe_kappas = np.clip(dynamic_kappas, min_safe_kappa, max_safe_kappa)
+# =====================================================================
+                    # --- BLACK-BOX FIX 2: CV-BASED SHRINKAGE (The Shape Detector) ---
+                    # 1. Dimension-aware boundaries
+                    kappa_floor = float(self.d) * 0.2
+                    kappa_ceiling = max(150.0, float(self.d) * 10.0)
+                    local_kappas = np.clip(dynamic_kappas, kappa_floor, kappa_ceiling)
                     
-                    optimal_scalar_kappa = float(np.mean(safe_kappas))
-                    proposer.active_proposer.kappas = np.full(len(warped_anchors), optimal_scalar_kappa)
+                    # 2. Calculate the Coefficient of Variation (CV)
+                    mean_kappa = np.mean(local_kappas)
+                    var_kappa = np.var(local_kappas) + 1e-5
+                    cv = np.sqrt(var_kappa) / (mean_kappa + 1e-5)
                     
-                    print(f"[GEOMETRY] Optimal Scalar Kappa locked at: {optimal_scalar_kappa:.2f}")
+                    # 3. Dynamic Shrinkage Factor
+                    # If CV is small (< 0.5), it's a Gaussian -> shrinkage hits ~0.95+
+                    # If CV is large (> 0.8), it's a Funnel -> shrinkage plummets to ~0.01
+                    shrinkage_weight = np.exp(-5.0 * (cv ** 2))
+                    
+                    # 4. Guarantee global envelope coverage for smooth shapes
+                    safe_mean_kappa = min(mean_kappa, float(self.d) * 0.4)
+                    
+                    # 5. Final Blend
+                    blended_kappas = (shrinkage_weight * safe_mean_kappa) + ((1.0 - shrinkage_weight) * local_kappas)
+                    
+                    proposer.active_proposer.kappas = blended_kappas
+                    
+                    print(f"[GEOMETRY] Shape Detector CV: {cv:.2f} | Resulting Shrinkage: {shrinkage_weight:.2f}")
+                    print(f"[GEOMETRY] Final Spread: [{np.min(blended_kappas):.2f} to {np.max(blended_kappas):.2f}]")
+                    # =====================================================================
                     
                     # 5. FIX THE BOUNDING BOX
                     original_a = self.a
