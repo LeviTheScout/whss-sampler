@@ -214,41 +214,45 @@ class sampling:
                     warped_anchors = warped_anchors / np.linalg.norm(warped_anchors, axis=1, keepdims=True)
                     proposer.active_proposer.anchors_mu = warped_anchors
                     
-                    # 4. ADAPTIVE NEAREST-NEIGHBOR KAPPAS (Calculated in warped space!)
+# 4. ADAPTIVE NEAREST-NEIGHBOR KAPPAS
                     print("[GEOMETRY] Calculating data-driven adaptive kappas...")
-                    dots = np.dot(warped_anchors, warped_anchors.T)
-                    np.fill_diagonal(dots, -1.0)
-                    nn_dots = np.max(dots, axis=1)
                     
-                    # Raw mathematical sharpness
-                    dynamic_kappas = self.d / (2.0 * (1.0 - nn_dots + 1e-5))
+                    # A. Compute Raw Kappas in WARPED space (for actual proposal generation)
+                    dots_warped = np.dot(warped_anchors, warped_anchors.T)
+                    np.fill_diagonal(dots_warped, -1.0)
+                    nn_dots_warped = np.max(dots_warped, axis=1)
+                    dynamic_kappas = self.d / (2.0 * (1.0 - nn_dots_warped + 1e-5))
                     
-# =====================================================================
-                    # --- BLACK-BOX FIX 2: CV-BASED SHRINKAGE (The Shape Detector) ---
-                    # 1. Dimension-aware boundaries
+                    # =====================================================================
+                    # --- BLACK-BOX FIX 2 (UPDATED): TRUE CV-BASED SHRINKAGE ---
+                    
                     kappa_floor = float(self.d) * 0.2
-                    kappa_ceiling = max(150.0, float(self.d) * 10.0)
+                    kappa_ceiling = float(self.d) * 5.0
                     local_kappas = np.clip(dynamic_kappas, kappa_floor, kappa_ceiling)
                     
-                    # 2. Calculate the Coefficient of Variation (CV)
-                    mean_kappa = np.mean(local_kappas)
-                    var_kappa = np.var(local_kappas) + 1e-5
-                    cv = np.sqrt(var_kappa) / (mean_kappa + 1e-5)
+                    # B. Compute the CV in ORIGINAL space (to detect true geometry)
+                    # The Warp Engine artificially flattens the space, hiding Funnels.
+                    # We must ask the original anchors how weird the target actually is.
+                    dots_true = np.dot(best_anchors, best_anchors.T)
+                    np.fill_diagonal(dots_true, -1.0)
+                    nn_dots_true = np.max(dots_true, axis=1)
+                    true_kappas = self.d / (2.0 * (1.0 - nn_dots_true + 1e-5))
                     
-                    # 3. Dynamic Shrinkage Factor
-                    # If CV is small (< 0.5), it's a Gaussian -> shrinkage hits ~0.95+
-                    # If CV is large (> 0.8), it's a Funnel -> shrinkage plummets to ~0.01
+                    true_mean = np.mean(true_kappas)
+                    true_var = np.var(true_kappas) + 1e-5
+                    cv = np.sqrt(true_var) / (true_mean + 1e-5)
+                    
+                    # C. Apply Shrinkage
                     shrinkage_weight = np.exp(-5.0 * (cv ** 2))
                     
-                    # 4. Guarantee global envelope coverage for smooth shapes
-                    safe_mean_kappa = min(mean_kappa, float(self.d) * 0.4)
+                    mean_kappa_warped = np.mean(local_kappas)
+                    safe_mean_kappa = min(mean_kappa_warped, float(self.d) * 0.4)
                     
-                    # 5. Final Blend
                     blended_kappas = (shrinkage_weight * safe_mean_kappa) + ((1.0 - shrinkage_weight) * local_kappas)
                     
                     proposer.active_proposer.kappas = blended_kappas
                     
-                    print(f"[GEOMETRY] Shape Detector CV: {cv:.2f} | Resulting Shrinkage: {shrinkage_weight:.2f}")
+                    print(f"[GEOMETRY] True Shape CV: {cv:.2f} | Resulting Shrinkage: {shrinkage_weight:.2f}")
                     print(f"[GEOMETRY] Final Spread: [{np.min(blended_kappas):.2f} to {np.max(blended_kappas):.2f}]")
                     # =====================================================================
                     

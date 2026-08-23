@@ -26,7 +26,7 @@ def find_peak_golden_section(user_log_g_r, theta, R_max, tol=1e-6):
     yd = user_log_g_r(d, theta)
 
     for _ in range(n):
-        if yc > yd:
+        if yc >= yd:
             b = d
             d = c
             yd = yc
