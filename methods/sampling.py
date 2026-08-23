@@ -71,6 +71,9 @@ class Samples:
 class sampling:
     def _sampling_universal(self, density, batch_size=3256, fallback_proposer="vmf", switch_threshold=0.05, burn_in_samples=None, max_anchors=50):
         
+        max_anchors = max(max_anchors, 3 * self.d) 
+        
+
         if burn_in_samples is None:
             burn_in_samples = batch_size
             

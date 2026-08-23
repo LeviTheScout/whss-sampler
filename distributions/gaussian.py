@@ -45,13 +45,14 @@ class nsmc_sampling_gaussian(nsmc_sampling):
             log_norm_const = -0.5 * (self.d * np.log(2*np.pi) + log_det_sigma)
             mu=np.asarray(self.mu,dtype=np.float64) 
             dimension=self.d
+            u=mu@L_inv.T
+            C = np.sum(u**2)
             @njit
             def _gauss_single(r_batch,theta):
                 v=theta@L_inv.T
-                u=mu@L_inv.T
+                
                 A = np.sum(v**2)
                 B = -2.0 * np.sum(v * u)
-                C = np.sum(u**2)
                 
                 # 2. Evaluate the grid using fast 1D arrays (no d-dimensional matrices)
                 # Numba vectorizes this brilliantly without massive allocations.

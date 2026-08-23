@@ -165,38 +165,38 @@ class PhaseManager:
                 log_ratio = log_mass_batch
 
             # ====================================================
-            # THE OVERLAP FIX: GREEDY SPATIAL FILTERING
+            # DYNAMIC OVERLAP FIX: DECAYING SPATIAL FILTERING
             # ====================================================
             sorted_idx = np.argsort(log_ratio)[::-1]
+            
+            threshold = 0.85
             new_thetas = []
             new_masses = []
             
-            for idx in sorted_idx:
-                candidate = theta_batch[idx]
+            # Keep relaxing the threshold if space is too tight (e.g. low dimensions)
+            # threshold approaches 1.0 (closer together), capped at 0.999 to prevent identical copies
+            while len(new_thetas) < self.max_anchors and threshold <= 0.999:
+                new_thetas = []
+                new_masses = []
                 
-                if len(new_thetas) > 0:
-                    overlaps = np.dot(new_thetas, candidate)
-                    if np.max(overlaps) > 0.85: # Strict separation bound!
-                        continue
-                        
-                new_thetas.append(candidate)
-                new_masses.append(np.exp(log_mass_batch[idx]))
-                
-                if len(new_thetas) == self.max_anchors:
-                    break
-                    
-            # Safe Fallback: If space is too narrow to find 50 separate anchors at 0.85, 
-            # fill the rest with the highest remaining weights that aren't EXACT copies.
-            if len(new_thetas) < self.max_anchors:
                 for idx in sorted_idx:
                     candidate = theta_batch[idx]
-                    overlaps = np.dot(new_thetas, candidate)
-                    if np.max(overlaps) < 0.999: # Allow closer packing, but NO exact duplicates
-                        new_thetas.append(candidate)
-                        new_masses.append(np.exp(log_mass_batch[idx]))
+                    
+                    if len(new_thetas) > 0:
+                        overlaps = np.dot(new_thetas, candidate)
+                        if np.max(overlaps) > threshold:
+                            continue
+                            
+                    new_thetas.append(candidate)
+                    new_masses.append(np.exp(log_mass_batch[idx]))
+                    
                     if len(new_thetas) == self.max_anchors:
                         break
                         
+                # If we couldn't find 50 separate anchors, relax the spread constraint
+                if len(new_thetas) < self.max_anchors:
+                    threshold += 0.05
+                    
             self.best_thetas = new_thetas
             self.best_masses = new_masses
 # GEOMETRIC LOCK: 0.7 * d prevents all Tail Failures while keeping M low
