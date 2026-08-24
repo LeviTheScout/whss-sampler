@@ -1,17 +1,18 @@
 from ..methods.sampling import sampling
-from ..methods.importance import importance_sampling
 from ..methods.utility import utilities
 from ..methods.convergence import convergence
 
-class nsmc_sampling(sampling, importance_sampling, utilities,convergence):
+class nsmc_sampling(sampling, utilities, convergence):
     """
-    Parent class to generalise the nsmc_sampling. It has the general functions used for any sampling density.
+    Parent class to generalize the Warped Hybrid Slice Sampling (WHSS) MCMC engine.
+    It inherits the general sampling loop, utility functions, and convergence diagnostics.
+    
     Parameters:
-        d: dimsion of the cube
-        a: length of the cube.
-        k: required number of accepted samples
+        d: dimension of the space
+        a: length of the bounding box (retained for legacy plotting/bounding)
+        k: required number of MCMC samples
     """
-    def __init__(self,d,a,k):
-        self.d=d
-        self.a=a
-        self.k=k
+    def __init__(self, d, a, k):
+        self.d = d
+        self.a = a
+        self.k = k

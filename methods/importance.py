@@ -1,9 +1,10 @@
-from math import exp
 import numpy as np
-from numpy.core.fromnumeric import argmax
 from numba import njit, prange
-# (Removed joblib, scipy.integrate, etc., as Numba handles all parallelization/math natively now)
 
+# =====================================================================
+# TOOL 1: PHASE 2 WARM-UP (THE SCOUT)
+# Used by utility.py to find peaks and build the L-Matrix
+# =====================================================================
 @njit
 def find_peak_golden_section(user_log_g_r, theta, R_max, tol=1e-6):
     """
@@ -43,133 +44,47 @@ def find_peak_golden_section(user_log_g_r, theta, R_max, tol=1e-6):
 
     return (a + b) / 2.0
 
-
 # =====================================================================
-# 2. THE MAIN ENGINE (Parallelized, Memory-Safe, High-Precision)
+# TOOL 2: PHASE 3 MCMC ENGINE (THE SLICE WALKER)
+# Replaces importance_r_numba and the Rejection logic
 # =====================================================================
-
-@njit(parallel=True)
-def importance_r_numba(user_log_g_r, R_batch, theta_batch, grid_size_fine=5000, percentage_mass=0.99):
-    batch_size = len(R_batch)
-    a_vals = np.zeros(batch_size)
-    b_vals = np.zeros(batch_size)
-    log_f_max_batch = np.zeros(batch_size)
+@njit
+def slice_step_numba(target_log_density, x_curr, v, y_log, w=1.0, max_steps=1000):
+    """
+    Executes a mathematically reversible 1D Slice Sampling step along direction 'v'.
+    Implements Neal (2003) "Step-out" and "Shrinkage" procedures.
+    """
+    # 1. RANDOM BRACKET PLACEMENT (Required for Detailed Balance)
+    u = np.random.uniform(0.0, 1.0)
+    t_min = -w * u
+    t_max = t_min + w
     
-    # CRITICAL CHANGE: Returning Log Mass to prevent float64 overflow in high dimensions
-    log_total_mass_batch = np.zeros(batch_size) 
-
-    eps = 1e-10
-    drop_threshold = 20.0
-
-    for i in prange(batch_size):
-        R_ = R_batch[i]
-        theta = theta_batch[i]
-
-        # --- PHASE 1: Pinpoint the Peak ---
-        exact_peak_r = find_peak_golden_section(user_log_g_r, theta, R_)
-        peak_log_val = user_log_g_r(exact_peak_r, theta)
-
-        # --- PHASE 2: Dynamic Bounding (Bisection) ---
-        # 2a. Left boundary
-        if exact_peak_r <= eps or user_log_g_r(eps, theta) >= peak_log_val - drop_threshold:
-            r_start = eps
-        else:
-            low, high = eps, exact_peak_r
-            for _ in range(30):
-                mid = (low + high) / 2.0
-                if user_log_g_r(mid, theta) >= peak_log_val - drop_threshold:
-                    high = mid
-                else:
-                    low = mid
-            r_start = low
-
-        # 2b. Right boundary
-        if exact_peak_r >= R_ or user_log_g_r(R_, theta) >= peak_log_val - drop_threshold:
-            r_end = R_
-        else:
-            low, high = exact_peak_r, R_
-            for _ in range(30):
-                mid = (low + high) / 2.0
-                if user_log_g_r(mid, theta) >= peak_log_val - drop_threshold:
-                    low = mid
-                else:
-                    high = mid
-            r_end = high
-
-# --- PHASE 3: Integration & CDF ---
-        fine_grid = np.linspace(r_start, r_end, grid_size_fine)
+    # 2. THE STEP-OUT PROCEDURE
+    step_count = 0
+    while step_count < max_steps:
+        x_left = x_curr + t_min * v
+        if target_log_density(x_left) <= y_log:
+            break
+        t_min -= w
+        step_count += 1
         
-        # REVERTED: Pass the entire grid at once to utilize the user's vectorized Numba function!
-        log_g_r_grid = user_log_g_r(fine_grid, theta)
+    step_count = 0
+    while step_count < max_steps:
+        x_right = x_curr + t_max * v
+        if target_log_density(x_right) <= y_log:
+            break
+        t_max += w
+        step_count += 1
+
+    # 3. THE SHRINKAGE PROCEDURE (Propose & Accept)
+    while True:
+        t_prop = np.random.uniform(t_min, t_max)
+        x_prop = x_curr + t_prop * v
+        
+        if target_log_density(x_prop) > y_log:
+            return t_prop  # Accepted!
             
-        local_log_f_max = np.max(log_g_r_grid)
-        dr = (r_end - r_start) / (grid_size_fine - 1)
-        cdf = np.empty(grid_size_fine)
-        current_sum = 0.0
-        
-        for j in range(grid_size_fine):
-            current_sum += np.exp(log_g_r_grid[j] - local_log_f_max) * dr
-            cdf[j] = current_sum
-
-        log_total_mass = np.log(current_sum + 1e-100) + local_log_f_max
-        target_mass = percentage_mass * current_sum
-
-# --- PHASE 4: The Sliding Window ---
-        a, b = r_start, r_end
-        min_width = r_end - r_start
-        left = 0
-        for right in range(grid_size_fine):
-            while cdf[right] - cdf[left] >= target_mass:
-                current_width = fine_grid[right] - fine_grid[left]
-                if current_width <= min_width:
-                    min_width = current_width
-                    a, b = fine_grid[left], fine_grid[right]
-                left += 1
-
-        a_vals[i] = a
-        b_vals[i] = b
-        log_f_max_batch[i] = local_log_f_max
-        
-        # ==========================================
-        # CRITICAL FIX: Use Box Mass for Rejection Math
-        # ==========================================
-        log_total_mass_batch[i] = local_log_f_max + np.log(b - a + 1e-100)
-
-    return a_vals, b_vals, log_f_max_batch, log_total_mass_batch
-
-
-class importance_sampling:
-
-    def away_thetas_batch(self, theta_batch, weights, tau, batch, orthants_batch=None):
-        """
-        (Retained for backwards compatibility with pure Orthant sampling).
-        """
-        sorted_weight_indices=np.argsort(weights)[::-1]
-        if batch:
-            # Assuming get_orthant is imported or accessible from utilities
-            # Note: For the new Universal architecture, we use Cosine Filtering instead.
-            from utility import utilities
-            utils = utilities()
-            utils.d = theta_batch.shape[1]
-            orthant_ids = utils.get_orthant(theta_batch)
-            
-            sorted_orthant_ids=orthant_ids[sorted_weight_indices]
-            _, first_ocurrances=np.unique(sorted_orthant_ids, return_index=True,axis=0)
-            first_ocurrances=np.sort(first_ocurrances)
-            selected_indices=sorted_weight_indices[first_ocurrances]
-            sorted_orthants=orthant_ids[selected_indices]
-            weights_new=weights[selected_indices]
-            thetas_new=theta_batch[selected_indices]
-            return sorted_orthants,thetas_new,weights_new
+        if t_prop < 0:
+            t_min = t_prop
         else:
-            orderd=orthants_batch[sorted_weight_indices]
-            _,idx=np.unique(orderd,return_index=True,axis=0)
-            idx=np.sort(idx)
-            orthants_descending=orderd[idx]
-            weights_descending=weights[sorted_weight_indices][idx]
-            theta_descending=theta_batch[sorted_weight_indices][idx]
-            return orthants_descending,theta_descending,weights_descending
-         
-    def importance_r(self, density, R_batch, theta_batch):
-        # We now expect log_mass_batch returned!
-        return importance_r_numba(density, R_batch, theta_batch)
+            t_max = t_prop

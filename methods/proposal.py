@@ -105,21 +105,18 @@ class vMFProposer(BaseProposer):
 
     def update_knowledge(self, theta_batch, log_mass_batch):
         pass
-# =====================================================================
-# 5. THE PHASE MANAGER (The Conductor)
-# =====================================================================
+
+
 class PhaseManager:
     def __init__(self, d, switch_threshold=0.05, fallback_strategy="vmf", burn_in_samples=10000, max_anchors=50, exploration_batches=5):
         self.d = d
         self.switch_threshold = switch_threshold
-        self.fallback_strategy = fallback_strategy.lower()
         self.burn_in_samples = burn_in_samples
         self.max_anchors = max_anchors
-        
-        # Phase parameters
         self.exploration_batches = exploration_batches
         self.exploration_count = 0
-        self.phase = 1  # 1: Uniform, 2: Explore, 3: Exact
+        
+        self.phase = 1  # 1: Uniform, 2: Explore vMF, 3: WARM-UP COMPLETE
         
         from .proposal import UniformProposer
         self.active_proposer = UniformProposer(d)
@@ -130,8 +127,12 @@ class PhaseManager:
         self.total_proposed = 0
 
     def generate_batch(self, batch_size):
+        if self.phase == 3:
+            raise RuntimeError("Warm-Up is complete. Do not call proposer in Phase 3.")
+            
         if self.phase == 1:
             self.total_proposed += batch_size
+            
         return self.active_proposer.generate_batch(batch_size)
 
     def register_acceptances(self, count):
@@ -151,97 +152,43 @@ class PhaseManager:
                 self.best_masses = [self.best_masses[i] for i in sorted_indices]
                 
             if self.total_proposed >= self.burn_in_samples:
-                acceptance_rate = self.total_accepted / (self.total_proposed + 1e-9)
-                if acceptance_rate < self.switch_threshold:
-                    print(f"\nEfficiency dropped to {acceptance_rate:.4f}. Starting Phase 1.5 (Adaptive Exploration)!")
-                    from .proposal import vMFProposer
-                    self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses)
-                    self.phase = 2
+                # We can just check mass improvement or use a fixed threshold to switch
+                print(f"\n[WARM-UP] Starting Phase 2 (Adaptive vMF Exploration)...")
+                from .proposal import vMFProposer
+                self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses)
+                self.phase = 2
 
         elif self.phase == 2:
-            if log_q_batch is not None:
-                log_ratio = log_mass_batch - log_q_batch
-            else:
-                log_ratio = log_mass_batch
-
-            # ====================================================
-            # DYNAMIC OVERLAP FIX: DECAYING SPATIAL FILTERING
-            # ====================================================
-            sorted_idx = np.argsort(log_ratio)[::-1]
+            log_ratio = log_mass_batch - log_q_batch if log_q_batch is not None else log_mass_batch
             
-            threshold = 0.85
-            new_thetas = []
-            new_masses = []
+            max_ratio = np.max(log_ratio)
+            weights = np.exp(log_ratio - max_ratio)
+            probs = weights / np.sum(weights)
             
-            # Keep relaxing the threshold if space is too tight (e.g. low dimensions)
-            # threshold approaches 1.0 (closer together), capped at 0.999 to prevent identical copies
-            while len(new_thetas) < self.max_anchors and threshold <= 0.999:
-                new_thetas = []
-                new_masses = []
-                
-                for idx in sorted_idx:
-                    candidate = theta_batch[idx]
-                    
-                    if len(new_thetas) > 0:
-                        overlaps = np.dot(new_thetas, candidate)
-                        if np.max(overlaps) > threshold:
-                            continue
-                            
-                    new_thetas.append(candidate)
-                    new_masses.append(np.exp(log_mass_batch[idx]))
-                    
-                    if len(new_thetas) == self.max_anchors:
-                        break
-                        
-                # If we couldn't find 50 separate anchors, relax the spread constraint
-                if len(new_thetas) < self.max_anchors:
-                    threshold += 0.05
-                    
-            self.best_thetas = new_thetas
-            self.best_masses = new_masses
-# GEOMETRIC LOCK: 0.7 * d prevents all Tail Failures while keeping M low
-            fixed_kappa = max(5.0, float(self.d) * 0.7)
-            dynamic_kappas = np.full(self.max_anchors, fixed_kappa)
+            chosen_indices = np.random.choice(len(theta_batch), size=self.max_anchors, p=probs, replace=True)
+            self.best_thetas = [theta_batch[i] for i in chosen_indices]
+            self.best_masses = [np.exp(log_mass_batch[i]) for i in chosen_indices]
             
+            # Use your brilliant Banerjee dynamic kappas here...
+            best_thetas_np = np.array(self.best_thetas)
+            similarities = np.dot(theta_batch, best_thetas_np.T)
+            cluster_assignments = np.argmax(similarities, axis=1)
+            dynamic_kappas = np.zeros(self.max_anchors)
+            
+            for k in range(self.max_anchors):
+                cluster_rays = theta_batch[cluster_assignments == k]
+                if len(cluster_rays) > 0:
+                    mean_vec = np.mean(cluster_rays, axis=0)
+                    R_bar = min(np.linalg.norm(mean_vec), 0.999)
+                    kappa_k = (R_bar * (self.d - R_bar**2)) / (1.0 - R_bar**2)
+                    dynamic_kappas[k] = min(kappa_k, 150.0)
+                else:
+                    dynamic_kappas[k] = 15.0 
+                    
             from .proposal import vMFProposer
             self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses, dynamic_kappas)
             
             self.exploration_count += 1
             if self.exploration_count >= self.exploration_batches:
-                theta_array = np.array(self.best_thetas)
-                unique_anchors = len(np.unique(theta_array, axis=0))
-                print(f"\n[DIAGNOSTIC] Exploration complete! Unique anchors: {unique_anchors}/{self.max_anchors}")
-                print("Anchors frozen. Starting Phase 3 (Exact Sampling)!")
-                self.phase = 3
-
-        elif self.phase == 3:
-            # PROTECT THE EXACT SAMPLER: Do nothing here.
-            pass
-
-    def warmup_kappas(self, theta_batch):
-        """
-        DEDICATED PHASE 2.5 WARMUP FUNCTION.
-        Safely updates kappas in the warped space WITHOUT touching the frozen anchors.
-        """
-        if self.phase != 3: return
-        
-        frozen_anchors = np.array(self.active_proposer.anchors_mu)
-        similarities = np.dot(theta_batch, frozen_anchors.T)
-        cluster_assignments = np.argmax(similarities, axis=1)
-        
-        new_kappas = np.zeros(len(frozen_anchors))
-        
-        for k in range(len(frozen_anchors)):
-            cluster_rays = theta_batch[cluster_assignments == k]
-            if len(cluster_rays) > 0:
-                mean_vec = np.mean(cluster_rays, axis=0)
-                R_bar = min(np.linalg.norm(mean_vec), 0.999)
-                kappa_k = (R_bar * (self.d - R_bar**2)) / (1.0 - R_bar**2)
-                
-                # Smooth learning: average old and new
-                old_kappa = self.active_proposer.kappas[k]
-                new_kappas[k] = min(0.5 * old_kappa + 0.5 * kappa_k, 150.0)
-            else:
-                new_kappas[k] = self.active_proposer.kappas[k]
-                
-        self.active_proposer.kappas = new_kappas
+                print(f"\n[WARM-UP] Phase 2 Complete. Structural anchors locked.")
+                self.phase = 3 # Signal to sampling.py that Warm-Up is done!

@@ -1,12 +1,30 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import math
 from numba import njit, prange
 from scipy.special import logsumexp, ive, loggamma
-
 from scipy.linalg import cholesky
-# Import your exact 1D searcher so Numba can link them at C-level
 from .importance import find_peak_golden_section 
+
+# =====================================================================
+# NEW MCMC TOOL: THE HYBRID RAY GENERATOR
+# =====================================================================
+@njit
+def generate_hybrid_ray_numba(d, L, prob_warp=0.8):
+    """
+    Generates a direction vector for WHSS (Warped Hybrid Slice Sampling).
+    80% chance: L-preconditioned Gaussian direction (navigates funnels).
+    20% chance: Random coordinate axis (escapes microscopic traps).
+    """
+    u = np.random.uniform(0.0, 1.0)
+    if u < prob_warp:
+        z = np.random.randn(d)
+        v = np.dot(L, z)
+    else:
+        v = np.zeros(d)
+        axis = np.random.randint(0, d)
+        v[axis] = 1.0 if np.random.uniform(0.0, 1.0) > 0.5 else -1.0
+        
+    return v / np.linalg.norm(v)
 
 # ==============================================================================
 # PHASE 2 MATH TOOLS (High-Performance Numba & SciPy Functions)
@@ -268,7 +286,7 @@ def build_warp_matrix(anchors, target_func, R_func, d, kappa_scout=None):
     # --- BLACK-BOX FIX 1: DYNAMIC ANTI-SQUASH (Regularized Covariance) ---
     # Limits extreme condition numbers (hallucinations) without breaking true geometries.
     # Scales safely and infinitely with dimension.
-    max_stretch_ratio = max(50.0, float(d) * 2.5)
+    max_stretch_ratio = max(200.0, float(d) * 2.5)
     floor_e = np.min(evals)
     evals = np.clip(evals, floor_e, floor_e * max_stretch_ratio)
     # =====================================================================
