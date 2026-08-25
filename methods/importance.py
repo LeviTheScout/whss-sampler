@@ -1,6 +1,82 @@
 import numpy as np
 from numba import njit, prange
 
+
+@njit
+def get_box_bounds(x_curr, v, a):
+    """
+    Analytically calculates exact line-intersection boundaries for a hypercube [-a/2, a/2]^d.
+    This guarantees the MCMC chain NEVER proposes a point outside the Rejection Sampling bounds.
+    """
+    t_min = -1e20
+    t_max = 1e20
+    half_a = a / 2.0
+    
+    d = len(v)
+    for i in range(d):
+        if np.abs(v[i]) > 1e-14:
+            t1 = (-half_a - x_curr[i]) / v[i]
+            t2 = (half_a - x_curr[i]) / v[i]
+            
+            if t1 > t2:
+                # Swap so t1 is always the minimum intersection for this axis
+                temp = t1
+                t1 = t2
+                t2 = temp
+                
+            if t1 > t_min: t_min = t1
+            if t2 < t_max: t_max = t2
+        else:
+            # If moving parallel to a wall, check if we are already outside
+            if x_curr[i] < -half_a or x_curr[i] > half_a:
+                return 0.0, 0.0
+                
+    return t_min, t_max
+
+@njit
+def slice_step_numba(density_func, x_curr, v, y_log, w, a):
+    """
+    1D Slice Sampler constrained analytically to the hypercube bounds.
+    """
+    # 1. Calculate hard geometric boundaries of the cube
+    t_min_bound, t_max_bound = get_box_bounds(x_curr, v, a)
+    
+    # Failsafe if completely trapped
+    if t_min_bound >= t_max_bound:
+        return 0.0
+        
+    # 2. Randomly position the initial bracket
+    u = np.random.uniform(0.0, 1.0)
+    L = -u * w
+    R = L + w
+    
+    # Clamp initial bracket to the exact hypercube walls
+    L = max(L, t_min_bound)
+    R = min(R, t_max_bound)
+    
+    # 3. Step-Out Phase (Restricted by Cube Bounds)
+    while L > t_min_bound and density_func(x_curr + L * v) > y_log:
+        L = max(L - w, t_min_bound)
+    while R < t_max_bound and density_func(x_curr + R * v) > y_log:
+        R = min(R + w, t_max_bound)
+        
+    # 4. Shrinkage Phase
+    while True:
+        t_cand = np.random.uniform(L, R)
+        if density_func(x_curr + t_cand * v) > y_log:
+            return t_cand  # Accept!
+            
+        # Shrink bracket
+        if t_cand < 0:
+            L = t_cand
+        else:
+            R = t_cand
+            
+        # Floating point failsafe
+        if R - L < 1e-10:
+            return 0.0
+        
+        
 # =====================================================================
 # TOOL 1: PHASE 2 WARM-UP (THE SCOUT)
 # Used by utility.py to find peaks and build the L-Matrix

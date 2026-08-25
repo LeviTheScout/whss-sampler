@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 import time
 from numba import njit
-from .utility import build_warp_matrix, generate_hybrid_ray_numba
+from .utility import build_warp_matrix, generate_hybrid_ray_numba, parallel_scout_eval
 from .importance import find_peak_golden_section, slice_step_numba
 
 class sampling:
@@ -41,53 +41,69 @@ class sampling:
         print("\n=== STARTING WHSS (Warped Hybrid Slice Sampler) ===")
         print("[STAGE 1] Spherical Warm-Up & Preconditioning...")
         
+# ... (keep everything above this identical)
         # Keep proposing rays until PhaseManager hits Phase 3
         while proposer.phase < 3:
             theta_batch, log_q_batch = proposer.generate_batch(batch_size)
             R_batch = self.R(theta_batch)  
             
-            # Find peaks using Golden Section (we do this in a fast loop)
+            # Find peaks using Golden Section
             log_mass_batch = np.empty(batch_size)
             for i in range(batch_size):
                 peak_r = find_peak_golden_section(density_spherical_single, theta_batch[i], R_batch[i])
                 log_mass_batch[i] = density_spherical_single(peak_r, theta_batch[i])
                 
             proposer.update_knowledge(theta_batch, log_mass_batch, log_q_batch)
-            proposer.register_acceptances(batch_size) # Dummy increment for Phase 1 threshold
+            proposer.register_acceptances(batch_size) 
             
-        # Build the L-Matrix
-        best_anchors = np.array(proposer.best_thetas)
-        self.L, self.L_inv = build_warp_matrix(best_anchors, density_spherical_single, self.R, self.d)
+        # =====================================================================
+        # NEW: CONVERT SPHERICAL ANCHORS TO CARTESIAN PEAKS
+        # =====================================================================
+        best_thetas = np.array(proposer.best_thetas)
+        best_masses = np.array(proposer.best_masses)
+        
+        cartesian_peaks = np.empty((len(best_thetas), self.d))
+        for i in range(len(best_thetas)):
+            r_peak = find_peak_golden_section(density_spherical_single, best_thetas[i], self.R(np.array([best_thetas[i]]))[0])
+            cartesian_peaks[i] = r_peak * best_thetas[i]
+            
+# Build the L-Matrix using the stabilized 15,000 point function
+        
+        self.L, self.L_inv = build_warp_matrix(
+
+            density_spherical_single, 
+            self.R, 
+            self.d,
+            parallel_scout_eval
+        )
         
         # =====================================================================
-        # 3. INITIALIZE ZERO-BURN-IN MCMC
+        # 3. INITIALIZE ZERO-BURN-IN MCMC (Weighted Center of Mass)
         # =====================================================================
-        # Find the absolute best anchor from Warm-Up to start the chain
-        best_idx = np.argmax(proposer.best_masses)
-        best_theta = best_anchors[best_idx]
-        best_r = find_peak_golden_section(density_spherical_single, best_theta, self.R(np.array([best_theta]))[0])
+        weights = np.exp(best_masses - np.max(best_masses))
+        weights /= np.sum(weights)
         
-        x_curr = best_r * best_theta 
-        print(f"[STAGE 2] Initiating MCMC Chain from peak (Log Density: {density_cartesian(x_curr):.2f})")
+        # Start exactly in the center of the probability mass
+        x_curr = np.average(cartesian_peaks, axis=0, weights=weights)
         
-        # =====================================================================
-        # 4. PHASE 3: THE HYBRID SLICE WALK
+        print(f"[STAGE 2] Initiating MCMC Chain from typical set (Log Density: {density_cartesian(x_curr):.2f})")
+        
+# =====================================================================
+        # 4. PHASE 3: CONSTRAINED SKELETON-GUIDED HYBRID SLICE WALK
         # =====================================================================
         mcmc_samples = np.empty((self.k, self.d))
+        num_anchors = len(cartesian_peaks)
         
         with tqdm(total=self.k, unit=' samples') as pbar:
             for i in range(self.k):
-                # 1. Get current cartesian density and draw slice threshold
                 current_log_prob = density_cartesian(x_curr)
                 y_log = current_log_prob - np.random.exponential(1.0)
                 
-                # 2. Draw Hybrid Direction (80% Warped, 20% Coordinate)
-                v = generate_hybrid_ray_numba(self.d, self.L, prob_warp=0.1)
+                v = generate_hybrid_ray_numba(self.d, self.L, cartesian_peaks, num_anchors)
                 
-                # 3. Exact Reversible Slice Step
-                t_jump = slice_step_numba(density_cartesian, x_curr, v, y_log, w=1.0)
+                # Pass self.a into the slice sampler to analytically bound the chain!
+                t_jump = slice_step_numba(density_cartesian, x_curr, v, y_log, 1.0, self.a)
                 
-                # 4. Jump and Save
                 x_curr = x_curr + t_jump * v
                 mcmc_samples[i] = x_curr
                 
@@ -96,5 +112,4 @@ class sampling:
         t_main_end = time.perf_counter()
         print(f'Done! Total MCMC time: {t_main_end - t_main:.2f}s')
         
-        # Return samples (We no longer have rejected samples in MCMC!)
         return mcmc_samples
