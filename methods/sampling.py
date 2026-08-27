@@ -3,11 +3,10 @@ from tqdm import tqdm
 import time
 from numba import njit
 from .utility import build_warp_matrix, generate_hybrid_ray_numba, parallel_scout_eval
-from .importance import find_peak_golden_section, slice_step_numba
+from .importance import slice_step_polytope, find_peak_golden_section
 
 class sampling:
-    def _sampling_universal(self, density_cartesian, batch_size=3256, burn_in_samples=10000, max_anchors=50):
-        
+    def _sampling_universal(self, density_cartesian, A=None, b=None, batch_size=3256, burn_in_samples=10000, max_anchors=50):        
         # =====================================================================
         # 1. AUTOMATIC SPHERICAL WRAPPER (User only writes Cartesian!)
         # =====================================================================
@@ -88,7 +87,7 @@ class sampling:
         
         print(f"[STAGE 2] Initiating MCMC Chain from typical set (Log Density: {density_cartesian(x_curr):.2f})")
         
-# =====================================================================
+    # =====================================================================
         # 4. PHASE 3: CONSTRAINED SKELETON-GUIDED HYBRID SLICE WALK
         # =====================================================================
         mcmc_samples = np.empty((self.k, self.d))
@@ -99,10 +98,11 @@ class sampling:
                 current_log_prob = density_cartesian(x_curr)
                 y_log = current_log_prob - np.random.exponential(1.0)
                 
+                # Draw the un-normalized Hybrid Direction
                 v = generate_hybrid_ray_numba(self.d, self.L, cartesian_peaks, num_anchors)
                 
-                # Pass self.a into the slice sampler to analytically bound the chain!
-                t_jump = slice_step_numba(density_cartesian, x_curr, v, y_log, 1.0, self.a)
+                # NEW: Pass A and b to the analytic polytope clipper!
+                t_jump = slice_step_polytope(density_cartesian, x_curr, v, y_log, 1.0, A, b)
                 
                 x_curr = x_curr + t_jump * v
                 mcmc_samples[i] = x_curr
