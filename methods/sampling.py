@@ -55,61 +55,72 @@ class sampling:
             proposer.update_knowledge(theta_batch, log_mass_batch, log_q_batch)
             proposer.register_acceptances(batch_size) 
             
+# =====================================================================
+        # FINAL PHASE 1.5: THE HYBRID COVARIANCE MERGE (STRETCH + FULL RANK)
         # =====================================================================
-        # NEW: CONVERT SPHERICAL ANCHORS TO CARTESIAN PEAKS
-        # =====================================================================
-        best_thetas = np.array(proposer.best_thetas)
-        best_masses = np.array(proposer.best_masses)
-        
-        cartesian_peaks = np.empty((len(best_thetas), self.d))
-        for i in range(len(best_thetas)):
-            r_peak = find_peak_golden_section(density_spherical_single, best_thetas[i], self.R(np.array([best_thetas[i]]))[0])
-            cartesian_peaks[i] = r_peak * best_thetas[i]
-            
-# Build the L-Matrix using the stabilized 15,000 point function
-        
-        self.L, self.L_inv = build_warp_matrix(
+        N_warp = 10000 
+        warp_rays = np.random.normal(0, 1, size=(N_warp, d))
+        warp_rays /= np.linalg.norm(warp_rays, axis=1, keepdims=True)
+        R_max_warp = self.R(warp_rays)
 
-            density_spherical_single, 
-            self.R, 
-            self.d,
-            parallel_scout_eval
-        )
+        @njit
+        def fast_peak_extract(thetas, r_bounds):
+            N = len(thetas)
+            peaks = np.empty((N, d))
+            for i in range(N):
+                r_peak = find_peak_golden_section(density_spherical_single, thetas[i], r_bounds[i])
+                peaks[i] = r_peak * thetas[i]
+            return peaks
+            
+        cartesian_uniform = fast_peak_extract(warp_rays, R_max_warp)
         
+        best_thetas = np.array(proposer.best_thetas)
+        R_max_anchors = self.R(best_thetas)
+        cartesian_anchors = fast_peak_extract(best_thetas, R_max_anchors)
+
+        # THE CURE: Combine uniform (full-rank) with vMF anchors (the 100x stretch)
+        cartesian_combined = np.vstack([cartesian_uniform, np.repeat(cartesian_anchors, 200, axis=0)])
+        
+        self.L, self.L_inv = build_warp_matrix(cartesian_combined, self.d)
+
         # =====================================================================
-        # 3. INITIALIZE ZERO-BURN-IN MCMC (Weighted Center of Mass)
+        # 3. INITIALIZE & PHASE 3: MCMC WALK
         # =====================================================================
-        weights = np.exp(best_masses - np.max(best_masses))
-        weights /= np.sum(weights)
-        
-        # Start exactly in the center of the probability mass
-        x_curr = np.average(cartesian_peaks, axis=0, weights=weights)
-        
+        x_curr = np.mean(cartesian_anchors, axis=0)
         print(f"[STAGE 2] Initiating MCMC Chain from typical set (Log Density: {density_cartesian(x_curr):.2f})")
         
-    # =====================================================================
-        # 4. PHASE 3: CONSTRAINED SKELETON-GUIDED HYBRID SLICE WALK
-        # =====================================================================
         mcmc_samples = np.empty((self.k, self.d))
-        num_anchors = len(cartesian_peaks)
+        num_anchors = len(cartesian_anchors)
+        use_polytope = (A is not None and b is not None)
+        from .importance import slice_step_unconstrained 
         
         with tqdm(total=self.k, unit=' samples') as pbar:
             for i in range(self.k):
                 current_log_prob = density_cartesian(x_curr)
                 y_log = current_log_prob - np.random.exponential(1.0)
+                v = generate_hybrid_ray_numba(self.d, self.L, cartesian_anchors, num_anchors)
                 
-                # Draw the un-normalized Hybrid Direction
-                v = generate_hybrid_ray_numba(self.d, self.L, cartesian_peaks, num_anchors)
-                
-                # NEW: Pass A and b to the analytic polytope clipper!
-                t_jump = slice_step_polytope(density_cartesian, x_curr, v, y_log, 1.0, A, b)
+                if use_polytope:
+                    # Notice the '1.0' is gone!
+                    t_jump = slice_step_polytope(density_cartesian, x_curr, v, y_log, A, b)
+                else:
+                    t_jump = slice_step_unconstrained(density_cartesian, x_curr, v, y_log, 1.0)
                 
                 x_curr = x_curr + t_jump * v
                 mcmc_samples[i] = x_curr
                 
+                # =============================================================
+                # NEW: THE ADAPTIVE ENGINE (Overcomes the Solid Angle Curse)
+                # Updates the global L-matrix using the chain's exploration.
+                # =============================================================
+                if i > 1000 and i % 1000 == 0:
+                    cov_emp = np.cov(mcmc_samples[:i], rowvar=False) + 1e-4 * np.eye(self.d)
+                    try:
+                        self.L = np.linalg.cholesky(cov_emp)
+                    except np.linalg.LinAlgError:
+                        pass
                 pbar.update(1)
                 
         t_main_end = time.perf_counter()
         print(f'Done! Total MCMC time: {t_main_end - t_main:.2f}s')
-        
         return mcmc_samples

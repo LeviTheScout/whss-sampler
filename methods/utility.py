@@ -11,29 +11,29 @@ from .importance import find_peak_golden_section
 def generate_hybrid_ray_numba(d, L, anchors, num_anchors):
     """
     Scale-Aware Hybrid Proposer. 
-    Vectors are UN-NORMALIZED so their magnitude drives the slice step size.
+    Guarantees no raw-coordinate proposals that crash into diagonal walls.
     """
     u = np.random.uniform(0.0, 1.0)
     
-    if u < 0.33:
-        # SKELETON MOVE: Slide along the non-linear bones
+    if u < 0.20:
+        # SKELETON MOVE: Slide along Phase 2 anchors
         idx1 = np.random.randint(0, num_anchors)
         idx2 = np.random.randint(0, num_anchors)
         while idx1 == idx2:
             idx2 = np.random.randint(0, num_anchors)
         v = anchors[idx1] - anchors[idx2]
         
-    elif u < 0.66:
+    elif u < 0.70:
         # WARPED MOVE: Global stretch
         z = np.random.randn(d)
         v = np.dot(L, z)
         
     else:
-        # COORDINATE MOVE: Axis-aligned, scaled by the diagonal of L
-        v = np.zeros(d)
+        # WARPED COORDINATE MOVE: Steps exactly down the principal axes of the skew!
+        z = np.zeros(d)
         axis = np.random.randint(0, d)
-        scale = np.abs(L[axis, axis]) + 1e-6 
-        v[axis] = scale if np.random.uniform(0.0, 1.0) > 0.5 else -scale
+        z[axis] = 1.0 if np.random.uniform(0.0, 1.0) > 0.5 else -1.0
+        v = np.dot(L, z)
         
     if np.linalg.norm(v) < 1e-15:
         v[0] = 1.0
@@ -69,25 +69,13 @@ def parallel_scout_eval(rays, R_max_array, target_func):
 # =====================================================================
 # 3. THE L-MATRIX BUILDER
 # =====================================================================
-def build_warp_matrix(target_func, R_func, d, parallel_scout_eval):
+def build_warp_matrix(x_coords, d):
     """
-    Statistically stable Unweighted Covariance using pure uniform bounded rays.
+    Statistically stable Unweighted Covariance from pre-calculated Cartesian peaks.
     """
     print("\n[WARP ENGINE] Booting Phase 1.5: Calculating global space transformation...")
     
-    N = max(15000, 100 * d**2)
-    
-    # Generate pure uniform rays (unbiased by Phase 2 clustering)
-    rays = np.random.normal(0, 1, size=(N, d))
-    rays = rays / np.linalg.norm(rays, axis=1, keepdims=True)
-    
-    # R_func bounds the rays strictly to your hypercube
-    R_max_array = R_func(rays)
-    
-    # Get Cartesian points of the bounded density peaks
-    x_coords, _ = parallel_scout_eval(rays, R_max_array, target_func)
-    
-    # Compute Unweighted Sample Covariance
+    N = len(x_coords)
     mu = np.mean(x_coords, axis=0)
     centered = x_coords - mu
     cov = (centered.T @ centered) / (N - 1)

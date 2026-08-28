@@ -43,34 +43,24 @@ def find_peak_golden_section(user_log_g_r, theta, R_max, tol=1e-6):
     return (a + b) / 2.0
 
 @njit
-def slice_step_polytope(density_func, x_curr, v, y_log, w, A, b):
+def slice_step_polytope(density_func, x_curr, v, y_log, A, b):
     """
     1D Slice Sampler perfectly constrained by analytic polytope boundaries.
+    SKIPS step-out entirely because exact geometric walls are known.
     """
-    # 1. Calculate absolute geometric boundaries of the polytope
     t_bound_min, t_bound_max = get_polytope_bounds(A, b, x_curr, v)
     
     if t_bound_min >= t_bound_max:
         return 0.0
         
-    # 2. Randomly position the initial bracket and CLAMP to walls
-    u = np.random.uniform(0.0, 1.0)
-    L = -u * w
-    R = L + w
-    
-    L = max(L, t_bound_min)
-    R = min(R, t_bound_max)
-    
-    # 3. Step-Out Phase (Restricted by Polytope Bounds)
-    while L > t_bound_min and density_func(x_curr + L * v) > y_log:
-        L = max(L - w, t_bound_min)
-    while R < t_bound_max and density_func(x_curr + R * v) > y_log:
-        R = min(R + w, t_bound_max)
+    # EXACT BOUNDARY BRACKETING (No step-out required!)
+    L = t_bound_min
+    R = t_bound_max
         
-    # 4. Shrinkage Phase
-    while True:
+    # Shrinkage Phase
+    for _ in range(100):  # Safety limit
         t_cand = np.random.uniform(L, R)
-        if density_func(x_curr + t_cand * v) > y_log:
+        if density_func(x_curr + t_cand * v) >= y_log:
             return t_cand  # Accept!
             
         if t_cand < 0:
@@ -78,16 +68,47 @@ def slice_step_polytope(density_func, x_curr, v, y_log, w, A, b):
         else:
             R = t_cand
             
+        if R - L < 1e-12:
+            break
+            
+    return 0.0
+            
+@njit
+def slice_step_unconstrained(density_func, x_curr, v, y_log, w, max_steps=1000):
+    """
+    1D Slice Sampler for unbounded, black-box target distributions.
+    """
+    u = np.random.uniform(0.0, 1.0)
+    L = -u * w
+    R = L + w
+
+    # Step-Out Phase
+    J, K = max_steps, max_steps
+    while J > 0 and density_func(x_curr + L * v) > y_log:
+        L -= w
+        J -= 1
+    while K > 0 and density_func(x_curr + R * v) > y_log:
+        R += w
+        K -= 1
+
+    # Shrinkage Phase
+    while True:
+        t_cand = np.random.uniform(L, R)
+        if density_func(x_curr + t_cand * v) > y_log:
+            return t_cand
+
+        if t_cand < 0:
+            L = t_cand
+        else:
+            R = t_cand
+
         if R - L < 1e-10:
             return 0.0
-            
-
-
 @njit
 def get_polytope_bounds(A, b, x_curr, v):
     """
     Analytically calculates exact line-intersection boundaries for Ax <= b.
-    Includes floating-point forgiveness for boundary-hugging chains.
+    Mathematically guarantees t_min <= 0 <= t_max by bounding slack >= 0.
     """
     t_min = -1e20
     t_max = 1e20
@@ -95,10 +116,10 @@ def get_polytope_bounds(A, b, x_curr, v):
     m = A.shape[0]
     for i in range(m):
         denom = np.dot(A[i], v)
-        slack = b[i] - np.dot(A[i], x_curr)
         
-        # Floating point failsafe: If slightly outside due to rounding, push to wall
-        if -1e-9 < slack < 0:
+        # THE FIX: Only correct negative drift. NEVER touch positive inside space.
+        slack = b[i] - np.dot(A[i], x_curr)
+        if slack < 0.0:
             slack = 0.0
             
         if denom > 1e-14:
@@ -109,8 +130,5 @@ def get_polytope_bounds(A, b, x_curr, v):
             t = slack / denom
             if t > t_min: 
                 t_min = t
-        else:
-            if slack < 0:
-                return 0.0, 0.0
                 
     return t_min, t_max
