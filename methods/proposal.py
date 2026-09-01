@@ -122,7 +122,7 @@ class PhaseManager:
         self.active_proposer = UniformProposer(d)
         
         self.best_thetas = []
-        self.best_masses = []
+        self.best_log_masses = []
         self.total_accepted = 0
         self.total_proposed = 0
 
@@ -141,33 +141,39 @@ class PhaseManager:
 
     def update_knowledge(self, theta_batch, log_mass_batch, log_q_batch=None):
         if self.phase == 1:
-            # Grab top 10 per batch to speed up initial gathering
             top_idx = np.argsort(log_mass_batch)[::-1][:10]
             self.best_thetas.extend(theta_batch[top_idx])
-            self.best_masses.extend(np.exp(log_mass_batch[top_idx]))
+            self.best_log_masses.extend(log_mass_batch[top_idx]) # <--- FIX
             
             if len(self.best_thetas) > self.max_anchors:
-                sorted_indices = np.argsort(self.best_masses)[::-1][:self.max_anchors]
+                # Sort directly on the log values!
+                sorted_indices = np.argsort(self.best_log_masses)[::-1][:self.max_anchors] # <--- FIX
                 self.best_thetas = [self.best_thetas[i] for i in sorted_indices]
-                self.best_masses = [self.best_masses[i] for i in sorted_indices]
+                self.best_log_masses = [self.best_log_masses[i] for i in sorted_indices] # <--- FIX
                 
             if self.total_proposed >= self.burn_in_samples:
-                # We can just check mass improvement or use a fixed threshold to switch
                 print(f"\n[WARM-UP] Starting Phase 2 (Adaptive vMF Exploration)...")
                 from .proposal import vMFProposer
-                self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses)
+                self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_log_masses) # <--- FIX
                 self.phase = 2
 
         elif self.phase == 2:
             log_ratio = log_mass_batch - log_q_batch if log_q_batch is not None else log_mass_batch
             
-            max_ratio = np.max(log_ratio)
-            weights = np.exp(log_ratio - max_ratio)
-            probs = weights / np.sum(weights)
+            # --- THE FIX: RANK-BASED ELITISM TO PREVENT L-MATRIX COLLAPSE ---
+            # Replaces probabilistic softmax (np.exp) which underflows in extreme spaces.
+            # We strictly take the top `max_anchors` unique structures based purely on rank.
             
-            chosen_indices = np.random.choice(len(theta_batch), size=self.max_anchors, p=probs, replace=True)
+            # Sort indices based on log_ratio (descending: highest mass difference first)
+            sorted_indices = np.argsort(log_ratio)[::-1]
+            
+            # Take the top `max_anchors` indices strictly by rank
+            num_to_take = min(self.max_anchors, len(sorted_indices))
+            chosen_indices = sorted_indices[:num_to_take]
+            
             self.best_thetas = [theta_batch[i] for i in chosen_indices]
-            self.best_masses = [np.exp(log_mass_batch[i]) for i in chosen_indices]
+            self.best_log_masses = [log_mass_batch[i] for i in chosen_indices]
+            # -------------------------------------------------------------
             
             # Use your brilliant Banerjee dynamic kappas here...
             best_thetas_np = np.array(self.best_thetas)
@@ -186,7 +192,7 @@ class PhaseManager:
                     dynamic_kappas[k] = 15.0 
                     
             from .proposal import vMFProposer
-            self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_masses, dynamic_kappas)
+            self.active_proposer = vMFProposer(self.d, self.best_thetas, self.best_log_masses, dynamic_kappas)
             
             self.exploration_count += 1
             if self.exploration_count >= self.exploration_batches:

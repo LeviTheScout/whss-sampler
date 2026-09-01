@@ -15,7 +15,7 @@ def generate_hybrid_ray_numba(d, L, anchors, num_anchors):
     """
     u = np.random.uniform(0.0, 1.0)
     
-    if u < 0.20:
+    if u < 0.33:
         # SKELETON MOVE: Slide along Phase 2 anchors
         idx1 = np.random.randint(0, num_anchors)
         idx2 = np.random.randint(0, num_anchors)
@@ -23,17 +23,20 @@ def generate_hybrid_ray_numba(d, L, anchors, num_anchors):
             idx2 = np.random.randint(0, num_anchors)
         v = anchors[idx1] - anchors[idx2]
         
-    elif u < 0.70:
+    elif u < 0.66:
         # WARPED MOVE: Global stretch
         z = np.random.randn(d)
         v = np.dot(L, z)
         
     else:
-        # WARPED COORDINATE MOVE: Steps exactly down the principal axes of the skew!
-        z = np.zeros(d)
+        # PURE COORDINATE MOVE: Strict axis-aligned step.
+        # This is strictly required to slide out of microscopic axis-aligned traps!
+        v = np.zeros(d)
         axis = np.random.randint(0, d)
-        z[axis] = 1.0 if np.random.uniform(0.0, 1.0) > 0.5 else -1.0
-        v = np.dot(L, z)
+        
+        # Scale the 1D slice bracket using the diagonal of L
+        scale = np.abs(L[axis, axis]) + 1e-6
+        v[axis] = scale if np.random.uniform(0.0, 1.0) > 0.5 else -scale
         
     if np.linalg.norm(v) < 1e-15:
         v[0] = 1.0
