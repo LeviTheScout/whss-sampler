@@ -18,17 +18,29 @@ By utilizing **Geometric Preconditioning** and **Hybrid Skeleton Rays**, WHSS ma
 
 ---
 
+## 🧠 Algorithm: How WHSS Works
+
+WHSS systematically breaks down the sampling problem into three distinct phases, decoupling the geometry discovery from the actual density exploration:
+
+
+
+1. **Phase 0 (Base Discovery):** We run multiple L-BFGS optimization chains with randomized uniform restarts to quickly identify valid regions deep inside the constrained polytope ( \le b$).
+2. **Phase 1 (Space Construction):** From these anchors, we cast isotropic von Mises-Fisher (vMF) boundary rays. By intersecting these rays with the hyperplanes, we map the shape of the space and construct a global Affine Warp Matrix ($) using spectral decomposition.
+3. **Phase 2 (Hybrid Slicing):** The MCMC chain begins. We use the hBcmatrix to warp the space, effectively turning long, skewed polytopes into perfectly conditioned isotropic spheres. We mix standard coordinate rays with novel **Skeleton Rays** to guarantee maximum jump distance and prevent spatial trapping.
+
+---
+
 ## 📈 Extended Empirical Results (Not Featured on Poster)
 
 Due to space constraints on the academic poster, we have included our extended empirical validation plots below:
 
 ### 1. Rapid ACF Decorrelation
 WHSS skeleton proposals bypass the ensemble collapse trap, leading to near-instant decorrelation across the Markov chain.
-![ACF Plot](test/results/acf_plot.png)
+<img src="test/results/acf_plot.png" width="700">
 
 ### 2. Superior Global Mobility (MSJD)
 Mean Squared Jump Distance (MSJD) analysis confirms that WHSS explores the entire constrained space dynamically, while prior SOTAs struggle to escape sharp corners.
-![MSJD Plot](test/results/msjd_plot.png)
+<img src="test/results/msjd_plot.png" width="700">
 
 ---
 
