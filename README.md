@@ -22,11 +22,21 @@ By utilizing **Geometric Preconditioning** and **Hybrid Skeleton Rays**, WHSS ma
 
 WHSS systematically breaks down the sampling problem into three distinct phases, decoupling the geometry discovery from the actual density exploration:
 
+```mermaid
+graph LR
+    P0[Phase 0<br>Base Discovery] -->|L-BFGS Anchors| P1[Phase 1<br>Space Construction]
+    P1 -->|vMF Rays & Global L-Matrix| P2[Phase 2<br>Hybrid Slicing]
+    P2 -->|Skeleton Rays| P3(((Final MCMC<br>Samples)))
+    
+    style P0 fill:#e8f0fe,stroke:#4285F4,stroke-width:2px
+    style P1 fill:#e8f0fe,stroke:#4285F4,stroke-width:2px
+    style P2 fill:#e8f0fe,stroke:#4285F4,stroke-width:2px
+    style P3 fill:#fce8e6,stroke:#EA4335,stroke-width:2px
+```
 
-
-1. **Phase 0 (Base Discovery):** We run multiple L-BFGS optimization chains with randomized uniform restarts to quickly identify valid regions deep inside the constrained polytope ( \le b$).
-2. **Phase 1 (Space Construction):** From these anchors, we cast isotropic von Mises-Fisher (vMF) boundary rays. By intersecting these rays with the hyperplanes, we map the shape of the space and construct a global Affine Warp Matrix ($) using spectral decomposition.
-3. **Phase 2 (Hybrid Slicing):** The MCMC chain begins. We use the hBcmatrix to warp the space, effectively turning long, skewed polytopes into perfectly conditioned isotropic spheres. We mix standard coordinate rays with novel **Skeleton Rays** to guarantee maximum jump distance and prevent spatial trapping.
+1. **Phase 0 (Base Discovery):** We run multiple L-BFGS optimization chains with randomized uniform restarts to quickly identify valid regions deep inside the constrained polytope ($Ax \le b$).
+2. **Phase 1 (Space Construction):** From these anchors, we cast isotropic von Mises-Fisher (vMF) boundary rays. By intersecting these rays with the hyperplanes, we map the shape of the space and construct a global Affine Warp Matrix ($L$) using spectral decomposition.
+3. **Phase 2 (Hybrid Slicing):** The MCMC chain begins. We use the $L$-matrix to warp the space, effectively turning long, skewed polytopes into perfectly conditioned isotropic spheres. We mix standard coordinate rays with novel **Skeleton Rays** to guarantee maximum jump distance and prevent spatial trapping.
 
 ---
 
@@ -36,10 +46,12 @@ Due to space constraints on the academic poster, we have included our extended e
 
 ### 1. Rapid ACF Decorrelation
 WHSS skeleton proposals bypass the ensemble collapse trap, leading to near-instant decorrelation across the Markov chain.
+
 <img src="test/results/acf_plot.png" width="700">
 
 ### 2. Superior Global Mobility (MSJD)
 Mean Squared Jump Distance (MSJD) analysis confirms that WHSS explores the entire constrained space dynamically, while prior SOTAs struggle to escape sharp corners.
+
 <img src="test/results/msjd_plot.png" width="700">
 
 ---
@@ -119,8 +131,6 @@ Solves a highly constrained Metabolic Flux Analysis (MFA) problem over an E. col
 python test/mfa.py
 python test/mfa_non_uniform_core.py
 ```
-
----
 
 ---
 
