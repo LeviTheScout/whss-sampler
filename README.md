@@ -18,6 +18,20 @@ By utilizing **Geometric Preconditioning** and **Hybrid Skeleton Rays**, WHSS ma
 
 ---
 
+## 📈 Extended Empirical Results (Not Featured on Poster)
+
+Due to space constraints on the academic poster, we have included our extended empirical validation plots below:
+
+### 1. Rapid ACF Decorrelation
+WHSS skeleton proposals bypass the ensemble collapse trap, leading to near-instant decorrelation across the Markov chain.
+![ACF Plot](test/results/acf_plot.png)
+
+### 2. Superior Global Mobility (MSJD)
+Mean Squared Jump Distance (MSJD) analysis confirms that WHSS explores the entire constrained space dynamically, while prior SOTAs struggle to escape sharp corners.
+![MSJD Plot](test/results/msjd_plot.png)
+
+---
+
 ## 🛠️ Installation
 
 Clone the repository and install it in editable mode:
@@ -95,10 +109,6 @@ python test/mfa_non_uniform_core.py
 ```
 
 ---
-
-## ⚠️ Known Limitations
-- **Needle Trap:** WHSS is vulnerable on purely uniform distributions inside extremely long, thin polytopes where isotropic vMF warm-up rays collide with side-walls.
-- **Warm-Up Cost:** The $\mathcal{O}(D^3)$ Phase 0/1 warm-up is a one-time investment. While amortized efficiently over long chains, it is a real speed cost for very short sampling budgets.
 
 ---
 
