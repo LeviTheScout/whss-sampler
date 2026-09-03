@@ -1,1 +1,8 @@
 *.npy
+IMPLEMENTATION_LOG.md
+PROJECT_SPECS.md
+Google Day @ IISc_ Digital Poster Presentation Guidelines & Template.pdf
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
