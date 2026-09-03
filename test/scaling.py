@@ -9,7 +9,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "../.."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 import emcee
 
 def compute_ess_per_chain(samples, burn_in_pct=0.2):
@@ -144,7 +144,7 @@ def run_scaling_benchmark():
         # ---------------- WHSS ----------------
         print(f"[{d}D] Running WHSS...")
         t0 = time.time()
-        sampler = nsmc_sampling_gaussian(d=d, k=n_samples, sigma=np.eye(d), mu=np.zeros(d))
+        sampler = whss_gaussian(d=d, k=n_samples, sigma=np.eye(d), mu=np.zeros(d))
         
         old_stdout = sys.stdout; sys.stdout = open(os.devnull, 'w')
         try:

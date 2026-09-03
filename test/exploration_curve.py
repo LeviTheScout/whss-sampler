@@ -12,7 +12,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, ".."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 
 plots_dir = os.path.join(current_dir, "plots")
 os.makedirs(plots_dir, exist_ok=True)
@@ -174,7 +174,7 @@ def run_variance_dominance_plot():
 
     # JIT WARMUP
     print("[JIT WARM-UP] Compiling internal functions...")
-    dummy_sampler = nsmc_sampling_gaussian(d=d, k=10, sigma=np.eye(d), mu=np.zeros(d))
+    dummy_sampler = whss_gaussian(d=d, k=10, sigma=np.eye(d), mu=np.zeros(d))
     run_silent_jit_warmup(dummy_sampler, log_prob, A_poly, b_poly)
 
     for r in range(k_runs):
@@ -207,7 +207,7 @@ def run_variance_dominance_plot():
 
         # 4. WHSS
         print("  Running WHSS (Ours)...")
-        sampler_whss = nsmc_sampling_gaussian(d=d, k=n_samples, sigma=np.eye(d)*0.1, mu=np.zeros(d))
+        sampler_whss = whss_gaussian(d=d, k=n_samples, sigma=np.eye(d)*0.1, mu=np.zeros(d))
         whss_samples = sampler_whss._sampling_universal(
             density_cartesian=log_prob, A=A_poly, b=b_poly,
             burn_in_samples=2500, max_anchors=60

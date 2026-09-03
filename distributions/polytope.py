@@ -1,9 +1,9 @@
 import numpy as np
 from numba import njit, prange
-from ..base.nsmc_sampling import nsmc_sampling
+from ..base.whss import whss
 from ..methods.importance import get_polytope_bounds
 
-class nsmc_sampling_polytope(nsmc_sampling):
+class whss_polytope(whss):
     def __init__(self, d=30, k=100000, A=None, b=None):
         super().__init__(d, 1e6, k)
         self.A = np.asarray(A, dtype=np.float64)

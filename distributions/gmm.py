@@ -2,9 +2,9 @@
 import numpy as np
 import scipy.linalg
 from numba import njit,prange
-from ..base.nsmc_sampling import nsmc_sampling
+from ..base.whss import whss
 
-class nsmc_sampling_gmm(nsmc_sampling):
+class whss_gmm(whss):
     """
     This class is specifically for nsmc sampling using f_r density being a Gaussian Mixture Model (GMM) density.
     Parameters:

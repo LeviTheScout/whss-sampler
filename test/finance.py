@@ -13,7 +13,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, ".."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 
 results_dir = os.path.join(current_dir, "results")
 diag_dir = os.path.join(current_dir, "diagnostics")
@@ -269,7 +269,7 @@ def run_silent_jit_warmups(density_func, shifted_func, A, b, b_shifted, d_sub):
         _ = run_hit_and_run(shifted_func, A, b_shifted, x_dummy, n_chains=2, n_steps=5)
         _ = run_dikin_walk(shifted_func, A, b_shifted, x_dummy, n_chains=2, n_steps=5)
         
-        dummy_whss = nsmc_sampling_gaussian(d=d_sub, k=10, sigma=np.eye(d_sub), mu=np.zeros(d_sub))
+        dummy_whss = whss_gaussian(d=d_sub, k=10, sigma=np.eye(d_sub), mu=np.zeros(d_sub))
         _ = dummy_whss._sampling_universal(
             density_cartesian=shifted_func, A=A, b=b_shifted,
             batch_size=10, burn_in_samples=10, max_anchors=10
@@ -393,7 +393,7 @@ def run_finance_benchmark():
     print("\n[4/4] Running Native WHSS (Ours)...")
     for r in range(k_runs):
         t0 = time.perf_counter()
-        sampler_whss = nsmc_sampling_gaussian(d=d_sub, k=n_samples, sigma=np.eye(d_sub), mu=np.zeros(d_sub))
+        sampler_whss = whss_gaussian(d=d_sub, k=n_samples, sigma=np.eye(d_sub), mu=np.zeros(d_sub))
         whss_samples = sampler_whss._sampling_universal(
             density_cartesian=shifted_log_prob,
             A=A_poly, b=b_shifted,

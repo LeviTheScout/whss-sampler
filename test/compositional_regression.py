@@ -8,7 +8,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, ".."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 
 results_dir = os.path.join(current_dir, "results")
 os.makedirs(results_dir, exist_ok=True)
@@ -155,7 +155,7 @@ def run_whss(log_posterior, A, b, x_init, total_mcmc_budget=30000):
     total_nfe = warmup_nfe + total_mcmc_budget  
     
     t0 = time.perf_counter()
-    sampler = nsmc_sampling_gaussian(d=d, a=6.0, sigma=np.ones(d), mu=np.zeros(d), k=total_mcmc_budget)
+    sampler = whss_gaussian(d=d, a=6.0, sigma=np.ones(d), mu=np.zeros(d), k=total_mcmc_budget)
     sampler.x_init_override = x_init.copy()
     
     samples_3d = sampler._sampling_universal(

@@ -18,7 +18,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, ".."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 
 results_dir = os.path.join(current_dir, "results")
 os.makedirs(results_dir, exist_ok=True)
@@ -164,7 +164,7 @@ def run_core_non_uniform_benchmark():
         @njit(fastmath=True)
         def dummy_log_prob(y): return 0.0
         dummy_Z = np.eye(k_dims); dummy_A = np.vstack([dummy_Z, -dummy_Z])
-        dummy = nsmc_sampling_gaussian(d=k_dims, k=10, sigma=np.eye(k_dims), mu=np.zeros(k_dims))
+        dummy = whss_gaussian(d=k_dims, k=10, sigma=np.eye(k_dims), mu=np.zeros(k_dims))
         dummy._sampling_universal(
             density_cartesian=dummy_log_prob, A=dummy_A, b=np.ones(k_dims*2),
             burn_in_samples=2500, max_anchors=50 
@@ -222,7 +222,7 @@ def run_core_non_uniform_benchmark():
         t0 = time.perf_counter()
         
         # Native WHSS without the massive uniform L-matrix override
-        sampler_whss = nsmc_sampling_gaussian(d=k_dims, k=n_samples, sigma=np.eye(k_dims), mu=np.zeros(k_dims))
+        sampler_whss = whss_gaussian(d=k_dims, k=n_samples, sigma=np.eye(k_dims), mu=np.zeros(k_dims))
         whss_samples = sampler_whss._sampling_universal(
             density_cartesian=log_prob_target,
             A=A_poly, b=b_poly,

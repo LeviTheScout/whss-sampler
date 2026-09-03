@@ -18,7 +18,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, ".."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 
 results_dir = os.path.join(current_dir, "results")
 diag_dir = os.path.join(current_dir, "diagnostics")
@@ -298,7 +298,7 @@ def run_mfa_benchmark():
         dummy_Z = np.eye(24)
         dummy_A = np.vstack([dummy_Z, -dummy_Z])
         dummy_b = np.ones(48)
-        dummy_sampler = nsmc_sampling_gaussian(d=24, k=10, sigma=np.eye(24), mu=np.zeros(24))
+        dummy_sampler = whss_gaussian(d=24, k=10, sigma=np.eye(24), mu=np.zeros(24))
         _ = dummy_sampler._sampling_universal(density_cartesian=uniform_poly, A=dummy_A, b=dummy_b)
     except Exception:
         pass
@@ -323,7 +323,7 @@ def run_mfa_benchmark():
         b_poly = np.concatenate([ub - center, center - lb])
         b_poly = np.maximum(b_poly, 0.0) 
         
-        sampler_whss = nsmc_sampling_gaussian(d=k_dims, k=n_samples, sigma=np.eye(k_dims), mu=np.zeros(k_dims))
+        sampler_whss = whss_gaussian(d=k_dims, k=n_samples, sigma=np.eye(k_dims), mu=np.zeros(k_dims))
         whss_shifted = sampler_whss._sampling_universal(
             density_cartesian=uniform_poly,
             A=A_poly, b=b_poly,

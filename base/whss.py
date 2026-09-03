@@ -2,7 +2,7 @@ from ..methods.sampling import sampling
 from ..methods.utility import utilities
 from ..methods.convergence import convergence
 
-class nsmc_sampling(sampling, utilities, convergence):
+class whss(sampling, utilities, convergence):
     """
     Parent class to generalize the Warped Hybrid Slice Sampling (WHSS) MCMC engine.
     It inherits the general sampling loop, utility functions, and convergence diagnostics.

@@ -9,7 +9,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, ".."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 
 plots_dir = os.path.join(current_dir, "results")
 os.makedirs(plots_dir, exist_ok=True)
@@ -170,7 +170,7 @@ def generate_acf_hero_plot():
             
         # 3. WHSS
         print("  Running WHSS (Ours)...")
-        sampler_whss = nsmc_sampling_gaussian(d=d, k=n_samples, sigma=np.eye(d)*0.1, mu=np.zeros(d))
+        sampler_whss = whss_gaussian(d=d, k=n_samples, sigma=np.eye(d)*0.1, mu=np.zeros(d))
         
         old_stdout = sys.stdout; sys.stdout = open(os.devnull, 'w')
         whss_samples = sampler_whss._sampling_universal(

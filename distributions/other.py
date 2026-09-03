@@ -1,10 +1,10 @@
 import numpy as np
 from scipy.special import beta as beta_func
 
-from ..base.nsmc_sampling import nsmc_sampling
+from ..base.whss import whss
 
 
-class nsmc_sampling_beta(nsmc_sampling):
+class whss_beta(whss):
     """
     This class is to sample from beta distribution along each sampled theta. This is just to verify our 
     code. With low beta and high-alpha, it should sample near edges.
@@ -50,7 +50,7 @@ class nsmc_sampling_beta(nsmc_sampling):
 
 
     
-# class nsmc_sampling_x_integrand(nsmc_sampling):
+# class whss_x_integrand(whss):
 #     """
 #     Parameters:
 #         d: dimsion of the cube
@@ -68,7 +68,7 @@ class nsmc_sampling_beta(nsmc_sampling):
 #         x_1[0]=1
 #
 #
-# class gaussian_mixture(nsmc_sampling):
+# class gaussian_mixture(whss):
 #
 #     def __init__(self,d,a,k):
 #         super().__init__(d,a,k)
@@ -92,7 +92,7 @@ class nsmc_sampling_beta(nsmc_sampling):
 #         f_max=((x_mode)**(self.d-1))*f_r_gauss(self.theta_generation(),x_mode)
 #     return f_r_gauss,f_max
 #
-# class laplace(nsmc_sampling):
+# class laplace(whss):
 #     def __init__(self,d,a,k):
 #         super().__init__(d,a,k,mu,b)
 #         self.mu=np.array(mu)

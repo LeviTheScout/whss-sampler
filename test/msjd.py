@@ -12,7 +12,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, ".."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 
 plots_dir = os.path.join(current_dir, "results")
 os.makedirs(plots_dir, exist_ok=True)
@@ -202,7 +202,7 @@ def run_msjd_scaling():
 
         # JIT WARMUP for current dimension
         print("  [JIT] Warming up compilers...")
-        dummy = nsmc_sampling_gaussian(d=d_sub, k=10, sigma=np.eye(d_sub), mu=np.zeros(d_sub))
+        dummy = whss_gaussian(d=d_sub, k=10, sigma=np.eye(d_sub), mu=np.zeros(d_sub))
         run_silent_jit_warmup(dummy, log_prob_shifted, A_poly, b_shifted)
 
         w_runs, h_runs, d_runs, e_runs = [], [], [], []
@@ -211,7 +211,7 @@ def run_msjd_scaling():
             print(f"  --- Run {r+1}/{k_runs} ---", end="\r")
             
             # 1. WHSS
-            sampler_whss = nsmc_sampling_gaussian(d=d_sub, k=n_samples, sigma=np.eye(d_sub), mu=np.zeros(d_sub))
+            sampler_whss = whss_gaussian(d=d_sub, k=n_samples, sigma=np.eye(d_sub), mu=np.zeros(d_sub))
             whss_samples = sampler_whss._sampling_universal(
                 density_cartesian=log_prob_shifted, A=A_poly, b=b_shifted,
                 burn_in_samples=2500, max_anchors=60

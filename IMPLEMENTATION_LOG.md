@@ -27,7 +27,7 @@ This file tracks all experiments, algorithmic changes, and empirical results for
     *   **10D:** WHSS (33.7), HRSS (28.7), Dikin (39.7)
     *   **100D:** WHSS (4.8), HRSS (0.74), Dikin (7.8)
     *   **400D:** WHSS (4.11), HRSS (0.39), Dikin (0.37)
-*   **Graph Generated:** `Random_sampling/nsmc_sampling/test/results/scaling_plot.png`
+*   **Graph Generated:** `Random_sampling/whss/test/results/scaling_plot.png`
 *   **Conclusion:** HRSS undergoes catastrophic exponential decay, falling below 1.0 ESS/1k at 100D. Dikin Walk collapses at 400D. WHSS stabilizes at a rock-solid floor of ~4.11 ESS/1k NFE at 400D, proving its preconditioning makes it virtually immune to high-dimensional geometric skew.
 
 ---
@@ -46,7 +46,7 @@ This file tracks all experiments, algorithmic changes, and empirical results for
 *   **Final Metrics:** 
     *   **10D:** WHSS jump distance is `1.29e-03` | HRSS: `7.71e-04` | Dikin: `1.22e-04`
     *   **40D:** WHSS jump distance is `1.68e-04` | HRSS: `9.50e-05` | Dikin: `1.40e-04`
-*   **Graph Generated:** `Random_sampling/nsmc_sampling/test/results/msjd_plot.png`
+*   **Graph Generated:** `Random_sampling/whss/test/results/msjd_plot.png`
 *   **Conclusion:** WHSS has superior geometric mobility across all dimension scales. Dikin Walk and HRSS take significantly smaller local steps, and Emcee traps completely.
 
 ---
@@ -55,7 +55,7 @@ This file tracks all experiments, algorithmic changes, and empirical results for
 **Objective:** Visually prove that the WHSS Markov Chain "forgets" its starting position exponentially faster than legacy algorithms.
 **Target Model:** 30-Dimensional Highly Skewed Gaussian bounded by a tight polytope.
 *   **Final Metrics (Lag 250):** WHSS autocorrelation plummets to `0.0868`. HRSS drags at `0.7242`. Dikin Walk completely fails (stuck at `1.0000`).
-*   **Graph Generated:** `Random_sampling/nsmc_sampling/test/results/acf_plot.png`
+*   **Graph Generated:** `Random_sampling/whss/test/results/acf_plot.png`
 *   **Conclusion:** In heavily conditioned/skewed spaces, WHSS is the only algorithm effectively generating independent samples. Dikin Walk is geometrically trapped and fails to mix.
 
 ---
@@ -69,7 +69,7 @@ This file tracks all experiments, algorithmic changes, and empirical results for
     *   **HRSS:** 2.87 ESS/1k NFE
     *   **Dikin Walk:** 2.80 ESS/1k NFE
 *   **Domain Coverage Finding:** While `emcee` reported a deceptively high ESS, the Domain Coverage metric mathematically proved it explored only `~1.5%` of the valid spatial domain (Range: 0.032 - 0.034), whereas WHSS covered `100%` (Range: 0.00 - 0.15). Emcee is trapped and mathematically invalid.
-*   **Report Generated:** `Random_sampling/nsmc_sampling/test/results/finance_report.txt`
+*   **Report Generated:** `Random_sampling/whss/test/results/finance_report.txt`
 *   **Conclusion:** WHSS defeats all valid constrained algorithms on realistic, non-differentiable Wall Street optimization targets.
 
 ---

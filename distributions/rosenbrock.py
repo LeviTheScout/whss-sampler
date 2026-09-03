@@ -1,8 +1,8 @@
 import numpy as np
 from numba import njit, prange
-from ..base.nsmc_sampling import nsmc_sampling
+from ..base.whss import whss
 
-class nsmc_sampling_rosenbock(nsmc_sampling):
+class whss_rosenbock(whss):
     """
     This class is for nsmc sampling using the Hybrid Rosenbrock density.
     Parameters:

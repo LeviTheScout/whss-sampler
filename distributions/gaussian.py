@@ -1,9 +1,9 @@
 import numpy as np
 import scipy.linalg
 from numba import njit
-from ..base.nsmc_sampling import nsmc_sampling
+from ..base.whss import whss
 
-class nsmc_sampling_gaussian(nsmc_sampling):
+class whss_gaussian(whss):
     """
     This class is specifically for Warped Hybrid Slice Sampling (WHSS)
     using a multivariate Gaussian density.

@@ -12,7 +12,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "../.."))
 sys.path.insert(0, project_root)
 
-from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
+from whss.distributions.gaussian import whss_gaussian
 
 # =====================================================================
 # DIRECTORY SETUP
@@ -134,11 +134,11 @@ def run_all_benchmarks():
         ess_emcee_funnel = compute_ess_per_chain(chain_flat)
 
     # Numba JIT Warmup (Untimed)
-    sampler_whss_dummy = nsmc_sampling_gaussian(d=d_funnel, k=10, sigma=np.eye(d_funnel), mu=np.zeros(d_funnel))
+    sampler_whss_dummy = whss_gaussian(d=d_funnel, k=10, sigma=np.eye(d_funnel), mu=np.zeros(d_funnel))
     run_silent_jit_warmup(sampler_whss_dummy, funnel_log_prob)
 
     # True Timed Benchmark
-    sampler_whss = nsmc_sampling_gaussian(d=d_funnel, k=k_funnel, sigma=np.eye(d_funnel), mu=np.zeros(d_funnel))
+    sampler_whss = whss_gaussian(d=d_funnel, k=k_funnel, sigma=np.eye(d_funnel), mu=np.zeros(d_funnel))
     t0 = time.perf_counter()
     whss_funnel_samples = sampler_whss._sampling_universal(density_cartesian=funnel_log_prob, A=None, b=None)
     t_whss_funnel = time.perf_counter() - t0
@@ -187,11 +187,11 @@ def run_all_benchmarks():
         ess_emcee_rosen = compute_ess_per_chain(chain_flat_rosen)
 
     # Numba JIT Warmup (Untimed)
-    sampler_whss_dummy_rosen = nsmc_sampling_gaussian(d=d_rosen, k=10, sigma=np.eye(d_rosen), mu=np.ones(d_rosen))
+    sampler_whss_dummy_rosen = whss_gaussian(d=d_rosen, k=10, sigma=np.eye(d_rosen), mu=np.ones(d_rosen))
     run_silent_jit_warmup(sampler_whss_dummy_rosen, rosenbrock_log_prob)
 
     # True Timed Benchmark
-    sampler_whss_rosen = nsmc_sampling_gaussian(d=d_rosen, k=k_rosen, sigma=np.eye(d_rosen), mu=np.ones(d_rosen))
+    sampler_whss_rosen = whss_gaussian(d=d_rosen, k=k_rosen, sigma=np.eye(d_rosen), mu=np.ones(d_rosen))
     t0 = time.perf_counter()
     whss_rosen_samples = sampler_whss_rosen._sampling_universal(density_cartesian=rosenbrock_log_prob, A=None, b=None)
     t_whss_rosen = time.perf_counter() - t0
@@ -246,11 +246,11 @@ def run_all_benchmarks():
         ess_emcee_poly = np.nan
 
     # Numba JIT Warmup (Untimed)
-    sampler_whss_dummy_poly = nsmc_sampling_gaussian(d=d_poly, k=10, sigma=cov_poly, mu=np.zeros(d_poly))
+    sampler_whss_dummy_poly = whss_gaussian(d=d_poly, k=10, sigma=cov_poly, mu=np.zeros(d_poly))
     run_silent_jit_warmup(sampler_whss_dummy_poly, sampler_whss_dummy_poly.f_cartesian_gaussian(), A=A_poly, b=b_poly)
 
     # True Timed Benchmark
-    sampler_whss_poly = nsmc_sampling_gaussian(d=d_poly, k=k_poly, sigma=cov_poly, mu=np.zeros(d_poly))
+    sampler_whss_poly = whss_gaussian(d=d_poly, k=k_poly, sigma=cov_poly, mu=np.zeros(d_poly))
     t0 = time.perf_counter()
     whss_poly_samples = sampler_whss_poly._sampling_universal(
         density_cartesian=sampler_whss_poly.f_cartesian_gaussian(), A=A_poly, b=b_poly
@@ -282,11 +282,11 @@ def run_all_benchmarks():
     b_100 = np.concatenate([b_upper_100, b_lower_100])
 
     # Numba JIT Warmup (Untimed)
-    sampler_whss_dummy_100 = nsmc_sampling_gaussian(d=d_100, k=10, sigma=cov_100, mu=np.zeros(d_100))
+    sampler_whss_dummy_100 = whss_gaussian(d=d_100, k=10, sigma=cov_100, mu=np.zeros(d_100))
     run_silent_jit_warmup(sampler_whss_dummy_100, sampler_whss_dummy_100.f_cartesian_gaussian(), A=A_100, b=b_100)
 
     # True Timed Benchmark
-    sampler_whss_100 = nsmc_sampling_gaussian(d=d_100, k=k_100, sigma=cov_100, mu=np.zeros(d_100))
+    sampler_whss_100 = whss_gaussian(d=d_100, k=k_100, sigma=cov_100, mu=np.zeros(d_100))
     t0 = time.perf_counter()
     whss_100_samples = sampler_whss_100._sampling_universal(
         density_cartesian=sampler_whss_100.f_cartesian_gaussian(), A=A_100, b=b_100

@@ -1,1 +1,1 @@
-from .nsmc_sampling import nsmc_sampling
+from .whss import whss

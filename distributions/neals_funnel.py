@@ -1,8 +1,8 @@
 import numpy as np
 from numba import njit
-from ..base.nsmc_sampling import nsmc_sampling
+from ..base.whss import whss
 
-class nsmc_sampling_neal_funnel(nsmc_sampling):
+class whss_neal_funnel(whss):
     """
     This class is for WHSS using a Generalized Neal's Funnel density.
     Parameters:
