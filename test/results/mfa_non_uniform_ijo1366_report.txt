@@ -1,0 +1,13 @@
+
+=========================================================================================================
+Model          : iJO1366 (2583 Reactions -> 542 Active Flux Dimensions)
+Null Space Dim : 542 (Precomputed & Fixed)
+Target Density : Gaussian L2 Penalty to FBA Optima (Sigma = 5.0000)
+---------------------------------------------------------------------------------------------------------
+Algorithm              | Time (s)  | Weight Retention (ESS_IS) | MCMC Min ESS    | ESS/1k NFE 
+---------------------------------------------------------------------------------------------------------
+ACHR (Uniform+SIR)     | 45.01     | 0.00  % (Degeneracy Risk) | 1.0             | 0.01       
+CHRR (Uniform+SIR)     | 679.69    | 0.00  % (Degeneracy Risk) | 149235.5        | 994.90     
+WHSS (Native)          | 1002.85   | 100.00% (Direct Sample)   | nan             | nan        
+=========================================================================================================
+[NOTE: If Weight Retention is < 5%, SOTA distributions are mathematically invalid regardless of MCMC ESS.]

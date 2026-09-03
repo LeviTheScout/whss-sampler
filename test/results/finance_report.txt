@@ -1,0 +1,13 @@
+=========================================================================================================
+WHSS REAL-WORLD VALIDATION: QUANTITATIVE FINANCE BENCHMARK (10 Runs)
+=========================================================================================================
+
+Problem: 30-Asset Black-Box CVaR Allocation under Polytope Constraints
+Target : Non-differentiable Historical 95% CVaR Utility inside Aw <= b
+
+Algorithm                | Time (s)  | Min ESS   | ESS/1k NFE         | Coverage (%)
+--------------------------------------------------------------------------------
+emcee (Affine Ensemble)  | 0.58      | 665.2     | 11.09 ± 0.26   | 78.7        
+Hit-and-Run (HRSS)       | 1.55      | 168.6     |  2.81 ± 0.26   | 100.0       
+Dikin Walk (Barrier)     | 3.02      | 165.1     |  2.75 ± 0.23   | 99.6        
+WHSS (Ours)              | 13.30     | 209.7     |  3.49 ± 0.20   | 100.0       

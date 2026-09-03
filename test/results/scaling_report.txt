@@ -1,0 +1,6 @@
+Scaling Benchmark Results:
+Dimension: 10 | WHSS: 36.44 | HRSS: 30.65 | Dikin: 17.09
+Dimension: 50 | WHSS: 7.43 | HRSS: 1.99 | Dikin: 1.05
+Dimension: 100 | WHSS: 5.51 | HRSS: 0.83 | Dikin: 0.62
+Dimension: 200 | WHSS: 5.32 | HRSS: 0.58 | Dikin: 0.84
+Dimension: 400 | WHSS: 4.40 | HRSS: 0.48 | Dikin: 0.44

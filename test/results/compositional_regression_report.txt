@@ -1,0 +1,22 @@
+============================================================
+COMPOSITIONAL BAYESIAN REGRESSION BENCHMARK
+============================================================
+Problem: D=100 (Simplex in 99D), N=500
+Target: Correlated Gaussian Likelihood (Anisotropic)
+MCMC Budget: 50,000 NFE per algorithm (post-warmup)
+WHSS Warm-Up NFE: 99,000 (included in ESS/NFE denominator)
+Runs: 3 (mean reported)
+
+Algorithm              |  Total NFE |  Min ESS |  ESS/1k NFE |  Time (s)
+----------------------------------------------------------------------
+WHSS                   |    149,000 |    71.92 |      0.4827 |      6.56
+HRSS                   |     50,000 |    71.23 |      1.4246 |      0.84
+MwG                    |     49,500 |    45.10 |      0.9111 |      0.58
+Emcee                  |     50,000 |  1645.54 |     32.9107 |      0.31
+
+NOTES:
+- WHSS total NFE = 99,000 (warmup) + 50,000 (MCMC)
+- ESS via emcee.autocorr.integrated_time with tol=0
+- Min ESS across dimensions reported (most conservative)
+- 30% burn-in discarded from all chains before ESS
+============================================================

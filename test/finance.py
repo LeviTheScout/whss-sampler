@@ -284,7 +284,8 @@ def run_silent_jit_warmups(density_func, shifted_func, A, b, b_shifted, d_sub):
 # MULTI-RUN FINANCE BENCHMARK
 # =====================================================================
 def run_finance_benchmark():
-    k_runs = 5
+    np.random.seed(42)
+    k_runs = 10
     n_samples = 60000  # Total evaluation budget across algorithms
     n_assets = 30
     
@@ -319,10 +320,10 @@ def run_finance_benchmark():
     report.append(f"Problem: {n_assets}-Asset Black-Box CVaR Allocation under Polytope Constraints")
     report.append(f"Target : Non-differentiable Historical 95% CVaR Utility inside Aw <= b\n")
 
-    emcee_times, emcee_min, emcee_med, emcee_max = [], [], [], []
-    hr_times, hr_min, hr_med, hr_max = [], [], [], []
-    dikin_times, dikin_min, dikin_med, dikin_max = [], [], [], []
-    whss_times, whss_min, whss_med, whss_max = [], [], [], []
+    emcee_times, emcee_min, emcee_med, emcee_max, emcee_cov = [], [], [], [], []
+    hr_times, hr_min, hr_med, hr_max, hr_cov = [], [], [], [], []
+    dikin_times, dikin_min, dikin_med, dikin_max, dikin_cov = [], [], [], [], []
+    whss_times, whss_min, whss_med, whss_max, whss_cov = [], [], [], [], []
 
     # -----------------------------------------------------------------
     # BASELINE 1: emcee Ensemble
@@ -340,6 +341,9 @@ def run_finance_benchmark():
         chain_3d = np.transpose(sampler.get_chain(), (1, 0, 2))
         mn, md, mx = compute_robust_ess_stats_3d(chain_3d)
         emcee_times.append(t_emcee); emcee_min.append(mn); emcee_med.append(md); emcee_max.append(mx)
+        
+        cov = ((np.max(chain_3d) - np.min(chain_3d)) / 0.15) * 100
+        emcee_cov.append(cov)
         
         print(f"  emcee Run {r+1}/{k_runs} -> Time: {t_emcee:.2f}s | Min ESS: {mn:.1f} | Med ESS: {md:.1f}")
         print(f"      -> Explored Range: [{np.min(chain_3d):.4f}, {np.max(chain_3d):.4f}] | Acc: {np.mean(sampler.acceptance_fraction):.3f}")
@@ -360,6 +364,8 @@ def run_finance_benchmark():
         hr_times.append(t_hr); hr_min.append(mn); hr_med.append(md); hr_max.append(mx)
         
         hr_abs = hr_samples + w_center
+        cov = ((np.max(hr_abs) - np.min(hr_abs)) / 0.15) * 100
+        hr_cov.append(cov)
         print(f"  Hit-and-Run Run {r+1}/{k_runs} -> Time: {t_hr:.2f}s | Min ESS: {mn:.1f} | Med ESS: {md:.1f}")
         print(f"      -> Explored Range: [{np.min(hr_abs):.4f}, {np.max(hr_abs):.4f}]")
 
@@ -376,6 +382,8 @@ def run_finance_benchmark():
         dikin_times.append(t_dikin); dikin_min.append(mn); dikin_med.append(md); dikin_max.append(mx)
         
         dikin_abs = dikin_samples + w_center
+        cov = ((np.max(dikin_abs) - np.min(dikin_abs)) / 0.15) * 100
+        dikin_cov.append(cov)
         print(f"  Dikin Walk Run {r+1}/{k_runs} -> Time: {t_dikin:.2f}s | Min ESS: {mn:.1f} | Med ESS: {md:.1f}")
         print(f"      -> Explored Range: [{np.min(dikin_abs):.4f}, {np.max(dikin_abs):.4f}]")
 
@@ -397,6 +405,8 @@ def run_finance_benchmark():
         whss_times.append(t_whss); whss_min.append(mn); whss_med.append(md); whss_max.append(mx)
         
         whss_abs = whss_samples + w_center
+        cov = ((np.max(whss_abs) - np.min(whss_abs)) / 0.15) * 100
+        whss_cov.append(cov)
         print(f"  WHSS Run {r+1}/{k_runs} -> Time: {t_whss:.2f}s | Min ESS: {mn:.1f} | Med ESS: {md:.1f}")
         print(f"      -> Explored Range: [{np.min(whss_abs):.4f}, {np.max(whss_abs):.4f}]")
 
@@ -408,17 +418,36 @@ def run_finance_benchmark():
     m_dikin_t, m_dikin_mn, m_dikin_md, m_dikin_mx = np.mean(dikin_times), np.mean(dikin_min), np.mean(dikin_med), np.mean(dikin_max)
     m_whss_t, m_whss_mn, m_whss_md, m_whss_mx = np.mean(whss_times), np.mean(whss_min), np.mean(whss_med), np.mean(whss_max)
 
-    report.append(f"{'Algorithm':<24} | {'Time (s)':<9} | {'Min ESS':<9} | {'Med ESS':<9} | {'Max ESS':<9} | {'ESS/s (Min)':<11} | {'ESS/s (Med)':<11}")
-    report.append("-" * 102)
-    report.append(f"{'emcee (Affine Ensemble)':<24} | {m_emcee_t:<9.2f} | {m_emcee_mn:<9.1f} | {m_emcee_md:<9.1f} | {m_emcee_mx:<9.1f} | {(m_emcee_mn/m_emcee_t):<11.2f} | {(m_emcee_md/m_emcee_t):<11.2f} (Trapped)")
-    report.append(f"{'Hit-and-Run (HRSS)':<24} | {m_hr_t:<9.2f} | {m_hr_mn:<9.1f} | {m_hr_md:<9.1f} | {m_hr_mx:<9.1f} | {(m_hr_mn/m_hr_t):<11.2f} | {(m_hr_md/m_hr_t):<11.2f}")
-    report.append(f"{'Dikin Walk (Barrier SOTA)':<24} | {m_dikin_t:<9.2f} | {m_dikin_mn:<9.1f} | {m_dikin_md:<9.1f} | {m_dikin_mx:<9.1f} | {(m_dikin_mn/m_dikin_t):<11.2f} | {(m_dikin_md/m_dikin_t):<11.2f}")
-    report.append(f"{'WHSS (Ours)':<24} | {m_whss_t:<9.2f} | {m_whss_mn:<9.1f} | {m_whss_md:<9.1f} | {m_whss_mx:<9.1f} | {(m_whss_mn/m_whss_t):<11.2f} | {(m_whss_md/m_whss_t):<11.2f}\n")
+    eff_emcee_mn = m_emcee_mn / (n_samples / 1000.0)
+    eff_emcee_md = m_emcee_md / (n_samples / 1000.0)
+    eff_hr_mn = m_hr_mn / (n_samples / 1000.0)
+    eff_hr_md = m_hr_md / (n_samples / 1000.0)
+    eff_dikin_mn = m_dikin_mn / (n_samples / 1000.0)
+    eff_dikin_md = m_dikin_md / (n_samples / 1000.0)
+    eff_whss_mn = m_whss_mn / (n_samples / 1000.0)
+    eff_whss_md = m_whss_md / (n_samples / 1000.0)
+
+    m_emcee_cov = np.mean(emcee_cov)
+    m_hr_cov = np.mean(hr_cov)
+    m_dikin_cov = np.mean(dikin_cov)
+    m_whss_cov = np.mean(whss_cov)
+
+    s_emcee_eff = np.std(np.array(emcee_min) / (n_samples / 1000.0))
+    s_hr_eff = np.std(np.array(hr_min) / (n_samples / 1000.0))
+    s_dikin_eff = np.std(np.array(dikin_min) / (n_samples / 1000.0))
+    s_whss_eff = np.std(np.array(whss_min) / (n_samples / 1000.0))
+
+    report.append(f"{'Algorithm':<24} | {'Time (s)':<9} | {'Min ESS':<9} | {'ESS/1k NFE':<18} | {'Coverage (%)':<12}")
+    report.append("-" * 80)
+    report.append(f"{'emcee (Affine Ensemble)':<24} | {m_emcee_t:<9.2f} | {m_emcee_mn:<9.1f} | {eff_emcee_mn:>5.2f} ± {s_emcee_eff:<6.2f} | {m_emcee_cov:<12.1f}")
+    report.append(f"{'Hit-and-Run (HRSS)':<24} | {m_hr_t:<9.2f} | {m_hr_mn:<9.1f} | {eff_hr_mn:>5.2f} ± {s_hr_eff:<6.2f} | {m_hr_cov:<12.1f}")
+    report.append(f"{'Dikin Walk (Barrier)':<24} | {m_dikin_t:<9.2f} | {m_dikin_mn:<9.1f} | {eff_dikin_mn:>5.2f} ± {s_dikin_eff:<6.2f} | {m_dikin_cov:<12.1f}")
+    report.append(f"{'WHSS (Ours)':<24} | {m_whss_t:<9.2f} | {m_whss_mn:<9.1f} | {eff_whss_mn:>5.2f} ± {s_whss_eff:<6.2f} | {m_whss_cov:<12.1f}\n")
     
     final_output = "\n".join(report)
     print("\n" + final_output)
     
-    report_path = os.path.join(results_dir, "finance_benchmark_report.txt")
+    report_path = os.path.join(results_dir, "finance_report.txt")
     with open(report_path, "w") as f:
         f.write(final_output)
 

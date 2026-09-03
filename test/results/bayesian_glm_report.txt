@@ -1,0 +1,23 @@
+============================================================
+CONSTRAINED BAYESIAN POISSON REGRESSION BENCHMARK
+============================================================
+Problem: D=50, N=500, Monotone + Box Constraints (m=149)
+Target: Poisson likelihood + Gaussian prior (non-Gaussian posterior)
+MCMC Budget: 30,000 NFE per algorithm (post-warmup)
+WHSS Warm-Up NFE: 50,000 (included in ESS/NFE denominator)
+Runs: 3 (mean reported)
+
+Algorithm              |  Total NFE |  Min ESS |  ESS/1k NFE |  Time (s)
+----------------------------------------------------------------------
+WHSS                   |     80,000 |    91.02 |      1.1377 |      6.25
+HRSS                   |     30,000 |    92.74 |      3.0913 |      1.00
+MwG                    |     30,000 |   102.62 |      3.4207 |      0.68
+Emcee                  |     30,000 |  1020.02 |     34.0007 |      0.24
+
+NOTES:
+- WHSS total NFE = 50,000 (warmup) + 30,000 (MCMC) = 80,000
+- ESS via emcee.autocorr.integrated_time with tol=0
+- Min ESS across 50 dimensions (most conservative)
+- 30% burn-in discarded from all chains before ESS
+- Emcee uses 60 walkers x 500 steps = 30,000 proposals
+============================================================

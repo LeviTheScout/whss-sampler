@@ -1,0 +1,20 @@
+=====================================================================================
+WHSS REAL-WORLD VALIDATION: MFA BENCHMARK (Averaged over 10 Runs)
+=====================================================================================
+
+Network Space : 95 Biological Reactions
+Null Space    : 24 Active Flux Dimensions (Averaged over 10 runs)
+
+Algorithm              | Time (s)  | Min ESS   | ESS/1k NFE        
+-----------------------------------------------------------------
+ACHR (Legacy Baseline) | 11.44     | 103.5     |  0.21 ± 0.09  
+CHRR (SOTA Rounding)   | 4.13      | 86.6      |  0.17 ± 0.05  
+WHSS (Ours - Unbiased) | 29.53     | 165.1     |  0.33 ± 0.08  
+
+=====================================================================================
+GLOBAL CENTROID DISCREPANCY (L2 Norm from CHRR 200k Empirical Mean)
+-> Note: This measures similarity to the SOTA empirical mean, not absolute corner-trapping.
+
+ACHR Bias : 9.1870
+WHSS Bias : 140.4913
+=====================================================================================

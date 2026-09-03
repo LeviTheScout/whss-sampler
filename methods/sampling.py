@@ -141,8 +141,16 @@ class sampling:
         n_anchors = len(cartesian_anchors)
         shrinkage = max(1e-4, float(d) / float(n_anchors + d))
         
-        # Regularized target covariance
-        target_diag = max(avg_var, 1e-6)
+        # Regularized target covariance: 
+        # If the target density is so steep that all anchors collapsed to the origin (avg_var ~ 0)
+        # we fall back to a geometric variance based on the actual physical boundaries of the polytope.
+        if avg_var < 1e-8:
+            geom_var = np.mean(R_max_anchors)**2 / float(d)
+            target_diag = max(geom_var, 1e-4)
+            shrinkage = max(shrinkage, 0.5) # Force strong mixing with the geometric prior
+        else:
+            target_diag = max(avg_var, 1e-6)
+            
         safe_cov = (1.0 - shrinkage) * cov_emp + (shrinkage * target_diag) * np.eye(d)
 
         # 4. Safe Cholesky Decomposition
@@ -155,8 +163,16 @@ class sampling:
             
         self.L_inv = np.linalg.inv(self.L)
 
+        # Allow external override of L-matrix.
+        # Use case: high-dimensional peaked targets where ray-peak warm-up collapses.
+        # The caller can pre-compute a geometric L from uniform LP samples and inject it.
+        if hasattr(self, 'L_override') and self.L_override is not None:
+            print("[WARP ENGINE] External L-matrix override detected. Replacing collapsed warm-up L.")
+            self.L = self.L_override
+            self.L_inv = np.linalg.inv(self.L)
+
         # Matrix condition diagnostic log
-        eigvals = np.linalg.eigvalsh(safe_cov)
+        eigvals = np.linalg.eigvalsh(self.L @ self.L.T)
         cond_num = np.sqrt(np.max(eigvals) / max(np.min(eigvals), 1e-12))
         print(f"=== [L MATRIX DIAGNOSTIC] ===")
         print(f"Condition Number : {cond_num:.2f}")

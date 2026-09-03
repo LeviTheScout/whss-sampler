@@ -1,0 +1,13 @@
+
+=========================================================================================================
+Model          : e_coli_core (95 Reactions -> 24 Active Flux Dimensions)
+Null Space Dim : 24 (Precomputed & Fixed)
+Target Density : Gaussian L2 Penalty to FBA Optima (Sigma = 1.0000)
+---------------------------------------------------------------------------------------------------------
+Algorithm              | Time (s)  | Weight Retention (ESS_IS) | MCMC Min ESS    | ESS/1k NFE 
+---------------------------------------------------------------------------------------------------------
+ACHR (Uniform+SIR)     | 0.64      | 0.01  % (Degeneracy Risk) | 1.0             | 0.04       
+CHRR (Uniform+SIR)     | 2.92      | 0.01  % (Degeneracy Risk) | 1.0             | 0.04       
+WHSS (Native)          | 4.48      | 100.00% (Direct Sample)   | 102.8           | 4.11       
+=========================================================================================================
+[NOTE: If Weight Retention is < 5%, SOTA distributions are mathematically invalid regardless of MCMC ESS.]

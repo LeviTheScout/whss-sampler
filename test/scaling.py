@@ -12,28 +12,35 @@ sys.path.insert(0, project_root)
 from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
 import emcee
 
-def compute_ess_per_chain(samples):
+def compute_ess_per_chain(samples, burn_in_pct=0.2):
     try:
         from emcee.autocorr import integrated_time
     except ImportError:
-        return 1.0
+        return 1.0, len(samples)
         
     if samples.ndim == 3:
         n_chains, n_steps, d = samples.shape
+        burn_in = int(n_steps * burn_in_pct)
+        valid_samples = samples[:, burn_in:, :]
+        valid_steps = valid_samples.shape[1]
+        
         chain_ess = []
         for c in range(n_chains):
             try:
-                tau = integrated_time(samples[c], c=5, tol=10, quiet=True)
-                chain_ess.append(n_steps / np.max(tau))
+                tau = integrated_time(valid_samples[c], c=5, tol=10, quiet=True)
+                chain_ess.append(valid_steps / np.max(tau))
             except:
                 chain_ess.append(1.0)
-        return np.sum(chain_ess)
+        return np.sum(chain_ess), valid_steps * n_chains
     else:
+        burn_in = int(len(samples) * burn_in_pct)
+        valid_samples = samples[burn_in:]
+        valid_steps = len(valid_samples)
         try:
-            tau = integrated_time(samples, c=5, tol=10, quiet=True)
-            return len(samples) / np.max(tau)
+            tau = integrated_time(valid_samples, c=5, tol=10, quiet=True)
+            return valid_steps / np.max(tau), valid_steps
         except:
-            return 1.0
+            return 1.0, valid_steps
 
 # Dikin and HRSS implementations (C-Speed)
 @njit(fastmath=True)
@@ -98,6 +105,7 @@ def run_dikin_walk(x0, A, b, num_samples, r=0.5):
     return samples
 
 def run_scaling_benchmark():
+    np.random.seed(42)
     # 10, 50, 100, 200, 400
     dimensions = [10, 50, 100, 200, 400]
     n_samples = 25000
@@ -145,8 +153,8 @@ def run_scaling_benchmark():
                 burn_in_samples=2500, max_anchors=60
             )
             whss_time = time.time() - t0
-            ess = compute_ess_per_chain(whss_samples)
-            results["WHSS"].append((ess / n_samples) * 1000)
+            ess, valid_samples = compute_ess_per_chain(whss_samples)
+            results["WHSS"].append((ess / valid_samples) * 1000)
         except Exception as e:
             results["WHSS"].append(0.0)
         finally:
@@ -159,8 +167,8 @@ def run_scaling_benchmark():
         t0 = time.time()
         hrss_samples = run_hit_and_run(x0, A_poly, b_poly, n_samples)
         hrss_time = time.time() - t0
-        ess = compute_ess_per_chain(hrss_samples)
-        results["HRSS"].append((ess / n_samples) * 1000)
+        ess, valid_samples = compute_ess_per_chain(hrss_samples)
+        results["HRSS"].append((ess / valid_samples) * 1000)
         print(f"   -> HRSS Efficiency: {results['HRSS'][-1]:.2f} ESS per 1000 NFE")
         
         # ---------------- Dikin Walk ----------------
@@ -169,8 +177,8 @@ def run_scaling_benchmark():
         try:
             dikin_samples = run_dikin_walk(x0, A_poly, b_poly, n_samples)
             dikin_time = time.time() - t0
-            ess = compute_ess_per_chain(dikin_samples)
-            results["Dikin"].append((ess / n_samples) * 1000)
+            ess, valid_samples = compute_ess_per_chain(dikin_samples)
+            results["Dikin"].append((ess / valid_samples) * 1000)
         except:
             results["Dikin"].append(0.0)
         print(f"   -> Dikin Efficiency: {results['Dikin'][-1]:.2f} ESS per 1000 NFE")
@@ -185,14 +193,21 @@ def run_scaling_benchmark():
     
     plt.yscale('log')
     plt.xlabel("Dimensionality ($D$)")
-    plt.ylabel("Algorithmic Efficiency (ESS per 1000 NFE)")
-    plt.title("Dimensional Scaling: Algorithmic Efficiency Under High Skew")
+    plt.ylabel("Post-Warm-Up Efficiency (ESS per 1000 MCMC steps)")
+    plt.title("Dimensional Scaling: Post-Warm-Up MCMC Mixing Efficiency")
     plt.grid(True, which="both", ls="--", alpha=0.5)
     plt.legend()
     
-    save_path = os.path.join(current_dir, "results", "dimensional_scaling.png")
+    save_path = os.path.join(current_dir, "results", "scaling_plot.png")
     plt.savefig(save_path, bbox_inches="tight")
-    print(f"\n[SUCCESS] Scaling benchmark saved to {save_path}")
+    print(f"\n[SUCCESS] Scaling benchmark plot saved to {save_path}")
+    
+    report_text = []
+    report_text.append("Scaling Benchmark Results:")
+    for d, whss, hrss, dikin in zip(dimensions, results["WHSS"], results["HRSS"], results["Dikin"]):
+        report_text.append(f"Dimension: {d} | WHSS: {whss:.2f} | HRSS: {hrss:.2f} | Dikin: {dikin:.2f}")
+    with open(os.path.join(current_dir, "results", "scaling_report.txt"), "w") as f:
+        f.write("\n".join(report_text))
 
 if __name__ == "__main__":
     run_scaling_benchmark()

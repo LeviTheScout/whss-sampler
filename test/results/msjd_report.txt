@@ -1,0 +1,5 @@
+MSJD Benchmark Results (Log Scale Mobility):
+Dimension: 10 | WHSS: 1.29e-03 | HRSS: 7.71e-04 | Dikin: 1.22e-04
+Dimension: 20 | WHSS: 8.92e-04 | HRSS: 5.95e-04 | Dikin: 2.34e-04
+Dimension: 30 | WHSS: 3.22e-04 | HRSS: 2.02e-04 | Dikin: 1.92e-04
+Dimension: 40 | WHSS: 1.68e-04 | HRSS: 9.50e-05 | Dikin: 1.40e-04

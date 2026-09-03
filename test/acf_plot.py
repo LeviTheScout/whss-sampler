@@ -11,7 +11,7 @@ sys.path.insert(0, project_root)
 
 from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
 
-plots_dir = os.path.join(current_dir, "plots")
+plots_dir = os.path.join(current_dir, "results")
 os.makedirs(plots_dir, exist_ok=True)
 
 plt.rcParams.update({
@@ -192,7 +192,7 @@ def generate_acf_hero_plot():
     plt.plot(lags, mean_h, label="Hit-and-Run (HRSS)", color="#FBBC04", alpha=0.9)
     plt.fill_between(lags, mean_h - std_h, mean_h + std_h, color="#FBBC04", alpha=0.2)
     
-    plt.plot(lags, mean_d, label="Dikin Walk", color="#34A853", linestyle="-.", alpha=0.9)
+    plt.plot(lags, mean_d, label="Dikin Walk (Geometric Collapse)", color="#34A853", linestyle="-.", alpha=0.9)
     plt.fill_between(lags, mean_d - std_d, mean_d + std_d, color="#34A853", alpha=0.2)
     
     plt.plot(lags, mean_w, label="WHSS (Ours)", color="#4285F4", alpha=0.9)
@@ -205,13 +205,19 @@ def generate_acf_hero_plot():
     plt.title(f"Mixing Autocorrelation in 30D Skewed Space (Cond=1000, 10 Runs)")
     plt.legend(loc="upper right")
     
-    png_path = os.path.join(plots_dir, "dominance_acf_plot.png")
+    png_path = os.path.join(plots_dir, "acf_plot.png")
     plt.savefig(png_path, bbox_inches="tight")
-    pdf_path = os.path.join(plots_dir, "dominance_acf_plot.pdf")
-    plt.savefig(pdf_path, bbox_inches="tight")
     plt.close()
     
-    print(f"Plot successfully saved to:\n  - {png_path}\n  - {pdf_path}")
+    report_text = ["ACF Mixing Decorrelation Benchmark (Mean over 10 Runs):"]
+    report_text.append("Lag | WHSS | HRSS | Dikin")
+    for i in range(len(lags)):
+        report_text.append(f"{lags[i]} | {mean_w[i]:.4f} | {mean_h[i]:.4f} | {mean_d[i]:.4f}")
+        
+    with open(os.path.join(plots_dir, "acf_plot_report.txt"), "w") as f:
+        f.write("\n".join(report_text))
+        
+    print(f"Plot and report successfully saved to {plots_dir}")
 
 if __name__ == "__main__":
     generate_acf_hero_plot()

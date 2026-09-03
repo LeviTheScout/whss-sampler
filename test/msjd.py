@@ -14,7 +14,7 @@ sys.path.insert(0, project_root)
 
 from nsmc_sampling.distributions.gaussian import nsmc_sampling_gaussian
 
-plots_dir = os.path.join(current_dir, "plots")
+plots_dir = os.path.join(current_dir, "results")
 os.makedirs(plots_dir, exist_ok=True)
 
 plt.rcParams.update({
@@ -266,10 +266,19 @@ def run_msjd_scaling():
     plt.title(f"Algorithm Mobility in Constrained Portfolio Space (10 Runs)")
     plt.legend()
     
-    png_path = os.path.join(plots_dir, "msjd_dominance_full.png")
+    png_path = os.path.join(plots_dir, "msjd_plot.png")
     plt.savefig(png_path, bbox_inches="tight")
     plt.close()
-    print(f"\nPlot saved to: {png_path}")
+    
+    report_text = []
+    report_text.append("MSJD Benchmark Results (Log Scale Mobility):")
+    for d, w_mu, h_mu, d_mu in zip(dimensions, msjd_whss_mu, msjd_hrss_mu, msjd_dikin_mu):
+        report_text.append(f"Dimension: {d} | WHSS: {w_mu:.2e} | HRSS: {h_mu:.2e} | Dikin: {d_mu:.2e}")
+    
+    with open(os.path.join(plots_dir, "msjd_report.txt"), "w") as f:
+        f.write("\n".join(report_text))
+        
+    print(f"\nPlot and report saved to: {plots_dir}")
 
 if __name__ == "__main__":
     run_msjd_scaling()
