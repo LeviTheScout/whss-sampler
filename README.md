@@ -40,21 +40,7 @@ graph LR
 
 ---
 
-## 📈 Extended Empirical Results (Not Featured on Poster)
 
-Due to space constraints on the academic poster, we have included our extended empirical validation plots below:
-
-### 1. Rapid ACF Decorrelation
-WHSS skeleton proposals bypass the ensemble collapse trap, leading to near-instant decorrelation across the Markov chain.
-
-<img src="test/results/acf_plot.png" width="700">
-
-### 2. Superior Global Mobility (MSJD)
-Mean Squared Jump Distance (MSJD) analysis confirms that WHSS explores the entire constrained space dynamically, while prior SOTAs struggle to escape sharp corners.
-
-<img src="test/results/msjd_plot.png" width="700">
-
----
 
 ## 🛠️ Installation
 

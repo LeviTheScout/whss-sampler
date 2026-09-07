@@ -1,6 +1,8 @@
-Scaling Benchmark Results:
-Dimension: 10 | WHSS: 36.44 | HRSS: 30.65 | Dikin: 17.09
-Dimension: 50 | WHSS: 7.43 | HRSS: 1.99 | Dikin: 1.05
-Dimension: 100 | WHSS: 5.51 | HRSS: 0.83 | Dikin: 0.62
-Dimension: 200 | WHSS: 5.32 | HRSS: 0.58 | Dikin: 0.84
-Dimension: 400 | WHSS: 4.40 | HRSS: 0.48 | Dikin: 0.44
+Scaling Benchmark Results (5 Runs):
+Dim:  10 | WHSS: 46.89 ± 3.64 | HRSS: 16.67 ± 1.43 | Dikin: 11.73 ± 0.20
+Dim:  20 | WHSS: 20.40 ± 1.48 | HRSS: 13.10 ± 0.30 | Dikin: 11.00 ± 0.19
+Dim:  30 | WHSS: 14.85 ± 0.36 | HRSS: 11.63 ± 0.12 | Dikin: 10.70 ± 0.25
+Dim:  40 | WHSS: 12.77 ± 0.31 | HRSS: 10.76 ± 0.35 | Dikin: 10.39 ± 0.18
+Dim:  50 | WHSS: 11.97 ± 0.31 | HRSS: 10.75 ± 0.14 | Dikin: 10.15 ± 0.10
+Dim:  75 | WHSS: 9.65 ± 0.14 | HRSS: 9.08 ± 0.10 | Dikin: 8.75 ± 0.12
+Dim: 100 | WHSS: 7.18 ± 0.10 | HRSS: 6.79 ± 0.08 | Dikin: nan ± nan

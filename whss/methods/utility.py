@@ -197,7 +197,7 @@ class utilities:
     def theta_generation(self, batch_size):
         """
         Generates random uniform directions on the d-dimensional sphere. 
-        Used by: `whss` legacy functions and testing.
+        Used by: `whss_sampling` legacy functions and testing.
         """
         samples = np.random.normal(0, 1, (batch_size, self.d))
         r = np.linalg.norm(samples, axis=1)

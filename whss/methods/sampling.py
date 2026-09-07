@@ -6,13 +6,14 @@ from .utility import build_warp_matrix, generate_hybrid_ray_numba, parallel_scou
 from .importance import slice_step_polytope, find_peak_golden_section
 
 class sampling:
-    def _sampling_universal(self, density_cartesian, A=None, b=None, batch_size=3256, burn_in_samples=10000, max_anchors=50):        
+    def _sampling_universal(self, density_cartesian, A=None, b=None, batch_size=3256, burn_in_samples=10000, max_anchors=50, bypass_safeguards=False):        
         # =====================================================================
         # 1. AUTOMATIC SPHERICAL WRAPPER (User only writes Cartesian!)
         # =====================================================================
         d = self.d
-        max_anchors = int(max(max_anchors, 3 * d))
-        burn_in_samples=int(max(burn_in_samples, 1000 * d))
+        if not bypass_safeguards:
+            max_anchors = int(max(max_anchors, 3 * d))
+            burn_in_samples=int(max(burn_in_samples, 1000 * d))
         @njit
         def density_spherical_single(r, theta):
             x_cartesian = r * theta
@@ -45,6 +46,7 @@ class sampling:
         # Guarantees we discover extreme corridors before random exploration begins
         coord_rays = np.vstack([np.eye(d), -np.eye(d)])
         R_coord = np.empty(2*d)
+        self.safe_shift = np.zeros(d)
         
         if A is not None and b is not None:
             for i in range(2*d):
@@ -54,6 +56,21 @@ class sampling:
                     R_coord[i] = np.min(b[valid_idx] / A_theta[valid_idx])
                 else:
                     R_coord[i] = 1e3
+                    
+            if np.min(R_coord) < 1e-3:
+                print(f"[STAGE 0] Origin trapped in microscopic corner. Geometric re-centering...")
+                best_idx = np.argmax(R_coord)
+                self.safe_shift = coord_rays[best_idx] * (R_coord[best_idx] * 0.5)
+                b = b - A @ self.safe_shift
+                
+                # Re-calculate R_coord from the new safe center
+                for i in range(2*d):
+                    A_theta = A @ coord_rays[i]
+                    valid_idx = A_theta > 1e-12
+                    if np.any(valid_idx):
+                        R_coord[i] = np.min(b[valid_idx] / A_theta[valid_idx])
+                    else:
+                        R_coord[i] = 1e3
         else:
             R_coord = self.R(coord_rays)
             
@@ -359,4 +376,9 @@ class sampling:
 
         # Instead of np.vstack, return a 3D array: (p_chains, steps_per_chain, d)
         final_samples = np.array(all_samples)
+        
+        # Shift samples back to their original geometric coordinates
+        if hasattr(self, 'safe_shift'):
+            final_samples = final_samples + self.safe_shift
+            
         return final_samples

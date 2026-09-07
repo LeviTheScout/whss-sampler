@@ -4,7 +4,7 @@ from ..base.whss import whss
 
 class whss_rosenbock(whss):
     """
-    This class is for nsmc sampling using the Hybrid Rosenbrock density.
+    This class is for whss sampling using the Hybrid Rosenbrock density.
     Parameters:
         d: dimension of the space
         a: length of the cube

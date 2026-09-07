@@ -6,8 +6,10 @@ import matplotlib.pyplot as plt
 from numba import njit
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "../.."))
+sys.path.insert(0, project_root)
 
-from whss.distributions.gaussian import whss_gaussian
+from whss_sampling.distributions.gaussian import whss_sampling_gaussian
 import emcee
 
 def compute_ess_per_chain(samples, burn_in_pct=0.2):
@@ -42,76 +44,89 @@ def compute_ess_per_chain(samples, burn_in_pct=0.2):
 
 # Dikin and HRSS implementations (C-Speed)
 @njit(fastmath=True)
-def run_hit_and_run(x0, A, b, num_samples):
-    d = len(x0)
-    samples = np.zeros((num_samples, d))
-    x = np.copy(x0)
-    
-    for i in range(num_samples):
-        u = np.random.randn(d)
-        u /= np.linalg.norm(u)
-        
-        t_min, t_max = -1e10, 1e10
-        for j in range(len(b)):
-            A_j_u = np.dot(A[j], u)
-            slack = b[j] - np.dot(A[j], x)
-            if A_j_u > 1e-9:
-                t_max = min(t_max, slack / A_j_u)
-            elif A_j_u < -1e-9:
-                t_min = max(t_min, slack / A_j_u)
-                
-        if t_min > t_max: t_min = t_max
-        
-        y = -np.random.exponential(1.0)
-        t = np.random.uniform(t_min, t_max)
-        x = x + t * u
-        samples[i] = x
-        
-    return samples
+def run_hit_and_run(density_func, A, b, x_init, n_chains, n_steps):
+    d = len(x_init)
+    samples = np.empty((n_chains, n_steps, d))
+    nfe = 0
+    for c in range(n_chains):
+        x_curr = x_init.copy()
+        for s in range(n_steps):
+            u = np.random.randn(d)
+            u /= np.linalg.norm(u)
+            Au, Ax = np.dot(A, u), np.dot(A, x_curr)
+            t_min, t_max = -1e20, 1e20
+            for i in range(len(b)):
+                if Au[i] > 1e-12: t_max = min(t_max, (b[i] - Ax[i]) / Au[i])
+                elif Au[i] < -1e-12: t_min = max(t_min, (b[i] - Ax[i]) / Au[i])
+            if t_min >= t_max:
+                samples[c, s] = x_curr; continue
+            y_slice = density_func(x_curr) - np.random.exponential(1.0)
+            nfe += 1
+            t = np.random.uniform(t_min, t_max)
+            x_prop = x_curr + t * u
+            
+            nfe += 1
+            while density_func(x_prop) < y_slice:
+                if t > 0: t_max = t
+                else: t_min = t
+                if t_max - t_min < 1e-10: break
+                t = np.random.uniform(t_min, t_max)
+                x_prop = x_curr + t * u
+                nfe += 1
+            x_curr = x_prop
+            samples[c, s] = x_curr
+    return samples, nfe
 
 @njit(fastmath=True)
-def run_dikin_walk(x0, A, b, num_samples, r=0.5):
-    d = len(x0)
-    samples = np.zeros((num_samples, d))
-    x = np.copy(x0)
-    I = np.eye(d)
-    
-    for i in range(num_samples):
-        slacks = b - np.dot(A, x)
-        H = np.zeros((d, d))
-        for j in range(len(b)):
-            H += np.outer(A[j], A[j]) / (slacks[j]**2)
+def run_dikin_walk(density_func, A, b, x_init, n_chains, n_steps, r_step=0.15):
+    d, m = len(x_init), len(b)
+    samples = np.empty((n_chains, n_steps, d))
+    for c in range(n_chains):
+        x_curr = x_init.copy()
+        for s in range(n_steps):
+            slack_x = np.maximum(b - np.dot(A, x_curr), 1e-10)
+            H_x = np.zeros((d, d))
+            for i in range(m):
+                row = A[i] / slack_x[i]
+                for j in range(d):
+                    for k in range(d): H_x[j, k] += row[j] * row[k]
+            for j in range(d): H_x[j, j] += 1e-6
+            L_x = np.linalg.cholesky(H_x)
+            z = np.random.randn(d)
+            x_prop = x_curr + np.linalg.solve(L_x.T, z) * r_step
             
-        try:
-            H_inv = np.linalg.inv(H)
-        except:
-            samples[i:] = x
-            break
+            slack_prop = b - np.dot(A, x_prop)
+            feasible = True
+            for i in range(m):
+                if slack_prop[i] <= 0.0: feasible = False; break
+            if not feasible:
+                samples[c, s] = x_curr; continue
+                
+            H_p = np.zeros((d, d))
+            for i in range(m):
+                row = A[i] / np.maximum(slack_prop, 1e-10)[i]
+                for j in range(d):
+                    for k in range(d): H_p[j, k] += row[j] * row[k]
+            for j in range(d): H_p[j, j] += 1e-6
+            L_p = np.linalg.cholesky(H_p)
             
-        z = np.random.randn(d)
-        L = np.linalg.cholesky(H_inv)
-        prop = x + r * np.dot(L, z)
-        
-        prop_slacks = b - np.dot(A, prop)
-        if np.any(prop_slacks <= 0):
-            samples[i] = x
-            continue
-            
-        samples[i] = prop
-        x = prop
-        
+            log_alpha = (density_func(x_prop) - density_func(x_curr)) + \
+                        (np.sum(np.log(np.diag(L_p))) - np.sum(np.log(np.diag(L_x)))) - \
+                        (np.dot((x_curr - x_prop), np.dot(H_p - H_x, (x_curr - x_prop))) / (2.0 * r_step**2))
+            if np.log(np.random.uniform(0.0, 1.0)) < log_alpha: x_curr = x_prop
+            samples[c, s] = x_curr
     return samples
 
 def run_scaling_benchmark():
     np.random.seed(42)
     # 10, 50, 100, 200, 400
-    dimensions = [10, 50, 100, 200, 400]
-    n_samples = 25000
+    dimensions = [10, 20, 30, 40, 50, 75,100]
+    k_runs = 5
     
     results = {
-        "WHSS": [],
-        "HRSS": [],
-        "Dikin": []
+        "WHSS": {"mu": [], "std": []},
+        "HRSS": {"mu": [], "std": []},
+        "Dikin": {"mu": [], "std": []}
     }
     
     print("=====================================================")
@@ -122,77 +137,113 @@ def run_scaling_benchmark():
         print(f"\n--- Testing Dimension: {d} ---")
         
         # 1. Create a Challenging Space
-        # Highly Skewed Gaussian target inside a restricted bounding box
-        # Condition Number = 1000
-        eigenvalues = np.linspace(1, 1000, d)
-        cov = np.diag(eigenvalues)
-        inv_cov = np.diag(1.0 / eigenvalues)
+        # Highly Skewed Gaussian target inside a tight restricted bounding box
+        # Condition Number = 1000 across ALL axes
+        # Using 10.0 as max variance (std ~3.16) so it crashes heavily into the [-1.0, 1.0] box!
+        cond = 1000.0
+        eigenvalues = np.geomspace(10.0, 10.0 / cond, d)
         
-        # Target density
+        np.random.seed(42 + d)
+        H = np.random.randn(d, d)
+        Q, _ = np.linalg.qr(H)
+        
+        base_cov = np.diag(eigenvalues)
+        base_inv_cov = np.diag(1.0 / eigenvalues)
+        
+        cov = Q @ base_cov @ Q.T
+        inv_cov = Q @ base_inv_cov @ Q.T
+        
+        # Target density: Skewed Gaussian
         @njit(fastmath=True)
         def log_prob(x):
-            return -0.5 * np.sum(x * (inv_cov @ x))
+            val = 0.0
+            for i in range(d):
+                for j in range(d):
+                    val += x[i] * inv_cov[i, j] * x[j]
+            return -0.5 * val
             
-        # Box constraints (Truncated Skewed Distribution)
-        A_poly = np.vstack([np.eye(d), -np.eye(d)])
-        b_poly = np.concatenate([np.ones(d)*10, np.ones(d)*10])
-        
+        # Box constraints (Tight Bounding Box)
+        # Using 1.0 to ensure the skewed Gaussian crashes heavily into the constraints
+        A_poly = np.ascontiguousarray(np.vstack([np.eye(d), -np.eye(d)]))
+        b_poly = np.ascontiguousarray(np.concatenate([np.ones(d)*1.0, np.ones(d)*1.0]))
         x0 = np.zeros(d)
         
-        # ---------------- WHSS ----------------
-        print(f"[{d}D] Running WHSS...")
-        t0 = time.time()
-        sampler = whss_gaussian(d=d, k=n_samples, sigma=np.eye(d), mu=np.zeros(d))
+        # DYNAMIC BUDGET: We MUST clear the 3*d anchor safeguard for the Warp matrix to be full-rank.
+        # At 10% acceptance, 3*d anchors takes ~30*d steps. 
+        burn_in_steps_per_chain = max(1000, 30 * d)
+        post_warmup_steps = max(1000, 15 * d)
+        steps_per_chain = burn_in_steps_per_chain + post_warmup_steps
+        n_samples = steps_per_chain * 10
         
-        old_stdout = sys.stdout; sys.stdout = open(os.devnull, 'w')
-        try:
-            whss_samples = sampler._sampling_universal(
-                density_cartesian=log_prob, A=A_poly, b=b_poly,
-                burn_in_samples=2500, max_anchors=60
-            )
-            whss_time = time.time() - t0
-            ess, valid_samples = compute_ess_per_chain(whss_samples)
-            results["WHSS"].append((ess / valid_samples) * 1000)
-        except Exception as e:
-            results["WHSS"].append(0.0)
-        finally:
-            sys.stdout = old_stdout
+        run_whss, run_hrss, run_dikin = [], [], []
+        
+        for run in range(k_runs):
+            if k_runs > 1:
+                print(f"   --- Run {run+1}/{k_runs} ---")
+                
+            # ---------------- WHSS ----------------
+            if k_runs == 1: print(f"[{d}D] Running WHSS...")
+            sampler = whss_sampling_gaussian(d=d, k=n_samples, sigma=np.eye(d), mu=np.zeros(d))
             
-        print(f"   -> WHSS Efficiency: {results['WHSS'][-1]:.2f} ESS per 1000 NFE")
+            old_stdout = sys.stdout; sys.stdout = open(os.devnull, 'w')
+            try:
+                t0 = time.time()
+                whss_samples = sampler._sampling_universal(
+                    density_cartesian=log_prob, A=A_poly, b=b_poly,
+                    burn_in_samples=burn_in_steps_per_chain * 10, max_anchors=3*d, bypass_safeguards=False
+                )
+                post_warmup_whss = whss_samples[:, burn_in_steps_per_chain:, :]
+                ess, valid_samples = compute_ess_per_chain(post_warmup_whss, burn_in_pct=0.0)
+                run_whss.append((ess / valid_samples) * 1000)
+            except Exception as e:
+                run_whss.append(0.0)
+            finally:
+                sys.stdout = old_stdout
+                
+            # ---------------- HRSS ----------------
+            if k_runs == 1: print(f"[{d}D] Running Hit-and-Run (HRSS)...")
+            t0 = time.time()
+            hrss_samples, hrss_nfe = run_hit_and_run(log_prob, A_poly, b_poly, x0, 10, steps_per_chain)
+            hrss_time = time.time() - t0
+            post_warmup_hrss = hrss_samples[:, burn_in_steps_per_chain:, :]
+            ess, valid_samples = compute_ess_per_chain(post_warmup_hrss, burn_in_pct=0.0)
+            run_hrss.append((ess / valid_samples) * 1000)
+            if k_runs == 1: print(f"      [!] HRSS required {hrss_nfe / (steps_per_chain*10):.1f} density evaluations per step!")
+            
+            # ---------------- Dikin Walk ----------------
+            if k_runs == 1: print(f"[{d}D] Running Dikin Walk (SOTA)...")
+            try:
+                dikin_samples = run_dikin_walk(log_prob, A_poly, b_poly, x0, 10, steps_per_chain)
+                post_warmup_dikin = dikin_samples[:, burn_in_steps_per_chain:, :]
+                ess, valid_samples = compute_ess_per_chain(post_warmup_dikin, burn_in_pct=0.0)
+                run_dikin.append((ess / valid_samples) * 1000)
+            except Exception as e:
+                run_dikin.append(0.0)
+                
+        # Aggregate statistics
+        results["WHSS"]["mu"].append(np.mean(run_whss))
+        results["WHSS"]["std"].append(np.std(run_whss) if k_runs > 1 else 0.0)
+        results["HRSS"]["mu"].append(np.mean(run_hrss))
+        results["HRSS"]["std"].append(np.std(run_hrss) if k_runs > 1 else 0.0)
+        results["Dikin"]["mu"].append(np.mean(run_dikin))
+        results["Dikin"]["std"].append(np.std(run_dikin) if k_runs > 1 else 0.0)
         
-        # ---------------- HRSS ----------------
-        print(f"[{d}D] Running Hit-and-Run (HRSS)...")
-        t0 = time.time()
-        hrss_samples = run_hit_and_run(x0, A_poly, b_poly, n_samples)
-        hrss_time = time.time() - t0
-        ess, valid_samples = compute_ess_per_chain(hrss_samples)
-        results["HRSS"].append((ess / valid_samples) * 1000)
-        print(f"   -> HRSS Efficiency: {results['HRSS'][-1]:.2f} ESS per 1000 NFE")
-        
-        # ---------------- Dikin Walk ----------------
-        print(f"[{d}D] Running Dikin Walk (SOTA)...")
-        t0 = time.time()
-        try:
-            dikin_samples = run_dikin_walk(x0, A_poly, b_poly, n_samples)
-            dikin_time = time.time() - t0
-            ess, valid_samples = compute_ess_per_chain(dikin_samples)
-            results["Dikin"].append((ess / valid_samples) * 1000)
-        except:
-            results["Dikin"].append(0.0)
-        print(f"   -> Dikin Efficiency: {results['Dikin'][-1]:.2f} ESS per 1000 NFE")
+        print(f"   -> WHSS Efficiency: {results['WHSS']['mu'][-1]:.2f} ± {results['WHSS']['std'][-1]:.2f}")
+        print(f"   -> HRSS Efficiency: {results['HRSS']['mu'][-1]:.2f} ± {results['HRSS']['std'][-1]:.2f}")
+        print(f"   -> Dikin Efficiency: {results['Dikin']['mu'][-1]:.2f} ± {results['Dikin']['std'][-1]:.2f}")
 
     # ---------------- Plotting ----------------
     plt.figure(figsize=(10, 6))
     plt.rcParams.update({"font.size": 14})
     
-    plt.plot(dimensions, results["WHSS"], label="WHSS (Ours)", marker='o', linewidth=3, color="#4285F4", markersize=8)
-    plt.plot(dimensions, results["HRSS"], label="Hit-and-Run (Legacy)", marker='s', linewidth=2, color="#FBBC04", linestyle="--")
-    plt.plot(dimensions, results["Dikin"], label="Dikin Walk (SOTA)", marker='^', linewidth=2, color="#EA4335", linestyle=":")
+    plt.errorbar(dimensions, results["WHSS"]["mu"], yerr=results["WHSS"]["std"], label="WHSS (Ours)", marker='o', linewidth=3, color="#4285F4", markersize=8, capsize=5)
+    plt.errorbar(dimensions, results["HRSS"]["mu"], yerr=results["HRSS"]["std"], label="Hit-and-Run (HRSS)", marker='s', linewidth=2, color="#FBBC04", linestyle="--", capsize=5)
+    plt.errorbar(dimensions, results["Dikin"]["mu"], yerr=results["Dikin"]["std"], label="Dikin Walk (SOTA)", marker='^', linewidth=2, color="#EA4335", linestyle=":", capsize=5)
     
     plt.yscale('log')
     plt.xlabel("Dimensionality ($D$)")
-    plt.ylabel("Post-Warm-Up Efficiency (ESS per 1000 MCMC steps)")
-    plt.title("Dimensional Scaling: Post-Warm-Up MCMC Mixing Efficiency")
+    plt.ylabel("Efficiency (ESS / 1k Steps)")
+    plt.title(f"Scaling Efficiency on Highly Skewed Gaussian (Cond={int(cond)})")
     plt.grid(True, which="both", ls="--", alpha=0.5)
     plt.legend()
     
@@ -201,9 +252,13 @@ def run_scaling_benchmark():
     print(f"\n[SUCCESS] Scaling benchmark plot saved to {save_path}")
     
     report_text = []
-    report_text.append("Scaling Benchmark Results:")
-    for d, whss, hrss, dikin in zip(dimensions, results["WHSS"], results["HRSS"], results["Dikin"]):
-        report_text.append(f"Dimension: {d} | WHSS: {whss:.2f} | HRSS: {hrss:.2f} | Dikin: {dikin:.2f}")
+    report_text.append(f"Scaling Benchmark Results ({k_runs} Runs):")
+    for i, d in enumerate(dimensions):
+        w_mu, w_std = results["WHSS"]["mu"][i], results["WHSS"]["std"][i]
+        h_mu, h_std = results["HRSS"]["mu"][i], results["HRSS"]["std"][i]
+        dk_mu, dk_std = results["Dikin"]["mu"][i], results["Dikin"]["std"][i]
+        report_text.append(f"Dim: {d:3d} | WHSS: {w_mu:.2f} ± {w_std:.2f} | HRSS: {h_mu:.2f} ± {h_std:.2f} | Dikin: {dk_mu:.2f} ± {dk_std:.2f}")
+        
     with open(os.path.join(current_dir, "results", "scaling_report.txt"), "w") as f:
         f.write("\n".join(report_text))
 

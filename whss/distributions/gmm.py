@@ -6,7 +6,7 @@ from ..base.whss import whss
 
 class whss_gmm(whss):
     """
-    This class is specifically for nsmc sampling using f_r density being a Gaussian Mixture Model (GMM) density.
+    This class is specifically for whss sampling using f_r density being a Gaussian Mixture Model (GMM) density.
     Parameters:
         d: dimension of the cube
         a: length of the cube.
